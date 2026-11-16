@@ -162,26 +162,38 @@ button:disabled { cursor: default; opacity: .4; }
   text-overflow: ellipsis;
   min-width: 0;
 }
-.mode {
-  margin-inline-start: auto;
-  display: inline-flex;
+.sess { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sess-who { display: grid; justify-items: end; min-width: 0; line-height: 1.2; }
+.sess-n { max-width: 8.5rem; font-size: .875rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess-r { font-size: .6875rem; font-weight: 600; color: var(--ink-3); }
+.sess-out {
   flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font-size: .8125rem;
+  font-weight: 600;
+}
+.seg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   padding: 3px;
   background: var(--surface-2);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 13px;
 }
-.mode-b {
+.seg-b {
   border: 0;
   background: none;
-  min-height: 34px;
-  padding: 0 14px;
-  border-radius: 999px;
-  font-size: .875rem;
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: .9375rem;
   font-weight: 600;
   color: var(--ink-2);
 }
-.mode-b[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg-b[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
 
 /* ---------- tabs ---------- */
 .tabs-top { display: none; gap: 2px; margin-inline-start: 12px; }
@@ -758,6 +770,35 @@ textarea.input { padding: 10px 12px; min-height: 76px; resize: vertical; line-he
 @media (min-width: 720px) { .set-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; } }
 .set-grid { display: grid; gap: 12px; }
 
+/* ---------- sign-in, team actions, import ---------- */
+.signin { display: grid; gap: 14px; width: 100%; max-width: 420px; margin: 0 auto; }
+.signin > * { min-width: 0; }
+.signin-h { display: grid; gap: 2px; padding-top: 10px; }
+.form { display: grid; gap: 14px; }
+.demo {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1.5px dashed var(--line-2);
+  border-radius: 14px;
+  font-size: .875rem;
+  color: var(--ink-2);
+}
+.demo strong { color: var(--ink); }
+.demo-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.demo-row .btn { flex: 1 1 auto; }
+.signin-foot { display: grid; gap: 8px; justify-items: start; padding-top: 6px; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.item-num { margin-inline-start: 8px; font-size: .8125rem; font-weight: 500; color: var(--ink-3); }
+.code-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.code-row .field { flex: 1 1 180px; }
+.check { display: flex; align-items: flex-start; gap: 10px; font-size: .875rem; }
+.check input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--accent); }
+.cand-go.st-new { color: var(--ok); }
+.cand-go.st-upd { color: var(--accent); }
+.cand-go.st-same { color: var(--ink-3); }
+.cand-go.st-err { color: var(--bad); }
+
 /* ---------- sheets ---------- */
 .sheet-wrap {
   position: fixed;
@@ -915,16 +956,14 @@ button.cand:hover:not(:disabled) { background: var(--surface-2); }
         <span class="brand-store" id="storeName"></span>
       </div>
       <nav class="tabs-top" id="tabsTop" aria-label="ניווט ראשי"></nav>
-      <div class="mode" role="group" aria-label="מצב תצוגה">
-        <button type="button" class="mode-b" id="modeManager" data-act="mode" data-mode="manager" aria-pressed="true">מנהל/ת</button>
-        <button type="button" class="mode-b" id="modeEmployee" data-act="mode" data-mode="employee" aria-pressed="false">עובד/ת</button>
-      </div>
+      <div class="sess" id="sess"></div>
     </div>
   </header>
   <main class="main" id="view"></main>
   <nav class="tabs-bottom" id="tabsBottom" aria-label="ניווט ראשי"></nav>
   <div id="sheetRoot"></div>
   <div class="toast-root" id="toastRoot" aria-live="polite"></div>
+  <input type="file" id="xlsxFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="קובץ אקסל של עובדים" hidden>
 </div>
 
 <script>
@@ -938,6 +977,9 @@ const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 
 const DAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const STORE_KEY = 'sadran.v1';
 const COLORS = 6;
+const DEMO_CODE = '2468';
+const EXCEL_SRC = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 /* ---------- helpers ---------- */
 const $ = (s, el) => (el || document).querySelector(s);
@@ -951,6 +993,8 @@ const mins = t => { const [h, m] = String(t || '0:0').split(':').map(Number); re
 const many = (n, one, plural) => (n === 1 ? one : n + ' ' + plural);
 const ltr = s => '<bdi class="t" dir="ltr">' + esc(s) + '</bdi>';
 const dayTitle = d => (d === 6 ? 'שבת' : 'יום ' + DAYS[d]);
+const normName = s => String(s == null ? '' : s).trim().replace(/\s+/g, ' ').toLowerCase();
+const normNum = s => String(s == null ? '' : s).replace(/[\s\-().+]/g, '');
 
 function startOfWeek(dt) { const d = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()); d.setDate(d.getDate() - d.getDay()); return d; }
 function addDays(dt, n) { const d = new Date(dt); d.setDate(d.getDate() + n); return d; }
@@ -987,6 +1031,8 @@ const ICONS = {
   copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>',
   undo: '<path d="M8 5 4 9l4 4"/><path d="M4 9h10a5.5 5.5 0 0 1 0 11h-3"/>',
   trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.5h9.4L17.5 7M10 11v5M14 11v5"/>',
+  up: '<path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5M5 19.5h14"/>',
+  down: '<path d="M12 4v11.5M7.5 11 12 15.5 16.5 11M5 19.5h14"/>',
 };
 const icon = n => '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n] + '</svg>';
 
@@ -995,7 +1041,9 @@ function seed() {
   const wk = defaultWeek();
   const now = Date.now();
   const s = {
-    v: 1,
+    v: 2,
+    example: true,
+    managerCode: DEMO_CODE,
     store: { name: 'מרכול השכונה' },
     roles: [
       { id: 'r_lead', name: 'אחראי/ת משמרת', color: 1 },
@@ -1011,21 +1059,21 @@ function seed() {
     closed: { '5|s_pm': true, '6|s_am': true, '6|s_pm': true },
     rules: { minRest: 10 },
     employees: [
-      { id: 'e_noa', name: 'נועה', roles: ['r_lead', 'r_cash'], max: 5 },
-      { id: 'e_yosi', name: 'יוסי', roles: ['r_lead', 'r_recv'], max: 5 },
-      { id: 'e_michal', name: 'מיכל', roles: ['r_lead', 'r_cash'], max: 4 },
-      { id: 'e_shadi', name: 'שאדי', roles: ['r_cash', 'r_stock'], max: 5 },
-      { id: 'e_dana', name: 'דנה', roles: ['r_cash'], max: 4 },
-      { id: 'e_tamar', name: 'תמר', roles: ['r_cash'], max: 4 },
-      { id: 'e_linoy', name: 'לינוי', roles: ['r_lead', 'r_cash'], max: 3 },
-      { id: 'e_omer', name: 'עומר', roles: ['r_cash', 'r_stock'], max: 4 },
-      { id: 'e_ron', name: 'רון', roles: ['r_recv', 'r_stock'], max: 5 },
-      { id: 'e_ahmad', name: 'אחמד', roles: ['r_recv', 'r_stock'], max: 5 },
-      { id: 'e_ella', name: 'אלה', roles: ['r_cash'], max: 4 },
+      { id: 'e_noa', name: 'נועה', number: '1001', roles: ['r_lead', 'r_cash'], max: 5 },
+      { id: 'e_yosi', name: 'יוסי', number: '1002', roles: ['r_lead', 'r_recv'], max: 5 },
+      { id: 'e_michal', name: 'מיכל', number: '1003', roles: ['r_lead', 'r_cash'], max: 4 },
+      { id: 'e_shadi', name: 'שאדי', number: '1004', roles: ['r_cash', 'r_stock'], max: 5 },
+      { id: 'e_dana', name: 'דנה', number: '1005', roles: ['r_cash'], max: 4 },
+      { id: 'e_tamar', name: 'תמר', number: '1006', roles: ['r_cash'], max: 4 },
+      { id: 'e_linoy', name: 'לינוי', number: '1007', roles: ['r_lead', 'r_cash'], max: 3 },
+      { id: 'e_omer', name: 'עומר', number: '1008', roles: ['r_cash', 'r_stock'], max: 4 },
+      { id: 'e_ron', name: 'רון', number: '1009', roles: ['r_recv', 'r_stock'], max: 5 },
+      { id: 'e_ahmad', name: 'אחמד', number: '1010', roles: ['r_recv', 'r_stock'], max: 5 },
+      { id: 'e_ella', name: 'אלה', number: '1011', roles: ['r_cash'], max: 4 },
     ],
     avail: {},
     weeks: {},
-    prefs: { mode: 'manager', me: 'e_shadi', demoNote: true },
+    prefs: { session: null, demoNote: true },
   };
   // am / pm: days the person can work; amP / pmP: days they prefer.
   const A = (id, hoursAgo, o) => {
@@ -1055,18 +1103,39 @@ function seed() {
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1 && Array.isArray(s.employees)) return s; }
+    if (raw) { const s = JSON.parse(raw); if (s && (s.v === 1 || s.v === 2) && Array.isArray(s.employees)) return migrate(s); }
   } catch (e) { /* storage unavailable: fall through to the example data */ }
   return null;
+}
+// Bring data saved by the first version up to date: sign-in numbers, a manager code, a session.
+function migrate(s) {
+  if (s.v === 1) { s.example = true; s.v = 2; }
+  s.prefs = s.prefs || { demoNote: true };
+  delete s.prefs.mode;
+  delete s.prefs.me;
+  if (!s.prefs.session) s.prefs.session = null;
+  if (!s.managerCode) s.managerCode = DEMO_CODE;
+  const used = new Set(s.employees.map(e => e.number).filter(Boolean));
+  let next = 1001;
+  for (const e of s.employees) {
+    if (e.number) continue;
+    while (used.has(String(next)) || String(next) === s.managerCode) next++;
+    e.number = String(next);
+    used.add(e.number);
+  }
+  return s;
 }
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
 
 let state = load();
 const firstRun = !state;
 if (!state) state = seed();
-state.prefs = state.prefs || { mode: 'manager', me: null, demoNote: true };
 
-const ui = { view: 'schedule', week: defaultWeek(), sheet: null, confirm: null, undo: null, fresh: false, open: {} };
+const ui = {
+  view: 'schedule', week: defaultWeek(), sheet: null, confirm: null, undo: null, fresh: false, open: {},
+  signin: { tab: 'employee', name: '', number: '', code: '', err: '' },
+  codeDraft: null, codeErr: '',
+};
 
 const roleById = id => state.roles.find(r => r.id === id);
 const shiftById = id => state.shifts.find(s => s.id === id);
@@ -1080,9 +1149,16 @@ function availRec(wk, empId, create) {
 const isSubmitted = (wk, empId) => { const r = availRec(wk, empId); return !!(r && r.submittedAt); };
 const submittedCount = wk => state.employees.filter(e => isSubmitted(wk, e.id)).length;
 function currentMe() {
-  let me = empById(state.prefs.me);
-  if (!me && state.employees.length) { me = state.employees[0]; state.prefs.me = me.id; }
-  return me || null;
+  const s = state.prefs.session;
+  return (s && s.role === 'employee' && empById(s.id)) || null;
+}
+// A free sign-in number to suggest for a new employee (only when the team uses short codes).
+function nextNumber() {
+  const nums = state.employees.map(e => e.number);
+  if (nums.some(n => !/^\d{1,6}$/.test(n))) return '';
+  let n = nums.length ? Math.max.apply(null, nums.map(Number)) + 1 : 1001;
+  while (String(n) === state.managerCode) n++;
+  return String(n);
 }
 
 /* ---------- staffing model ---------- */
@@ -1464,12 +1540,15 @@ function viewTeam() {
   const wk = ui.week, n = state.employees.length;
   return '<section class="pagehead"><div><h1 class="h1">הצוות</h1><p class="sub">' + many(n, 'עובד/ת אחד/ת', 'עובדים') + ' · מצב הזמינות לשבוע ' + ltr(weekLabel(wk)) + '</p></div>' +
     '<button type="button" class="btn btn-primary" id="btnAddEmp" data-act="emp">' + icon('plus') + 'עובד/ת</button></section>' +
+    '<section class="acts"><button type="button" class="btn" id="btnImport" data-act="importPick">' + icon('up') + 'ייבוא מאקסל</button>' +
+    (n ? '<button type="button" class="btn" id="btnExport" data-act="exportXlsx">' + icon('down') + 'ייצוא לאקסל</button>' : '') + '</section>' +
     (n ? '<section class="list">' + state.employees.map(e =>
-      '<button type="button" class="item" id="emp-' + e.id + '" data-act="emp" data-id="' + e.id + '"><span class="item-main"><span class="item-n">' + esc(e.name) + '</span>' +
-      '<span class="item-roles">' + (e.roles.map(roleChip).join('') || '<span class="sub">בלי תפקיד</span>') + '</span></span>' +
+      '<button type="button" class="item" id="emp-' + e.id + '" data-act="emp" data-id="' + e.id + '"><span class="item-main"><span class="item-n">' + esc(e.name) +
+      '<span class="item-num">מס׳ ' + ltr(e.number) + '</span></span>' +
+      '<span class="item-roles">' + (e.roles.map(roleChip).join('') || '<span class="tag tag-warn">בלי תפקיד, לא ישובץ/תשובץ אוטומטית</span>') + '</span></span>' +
       '<span class="item-meta"><span>עד ' + e.max + ' משמרות</span>' + (isSubmitted(wk, e.id) ? '<span class="tag tag-ok">הוגשה זמינות</span>' : '<span class="tag tag-warn">טרם הוגשה</span>') + '</span>' +
       icon('left') + '</button>').join('') + '</section>'
-      : '<section class="card empty"><h2 class="h2">עוד אין עובדים</h2><p class="sub">מוסיפים עובד/ת, בוחרים אילו תפקידים הוא/היא יכול/ה למלא, ואפשר להתחיל לשבץ.</p></section>');
+      : '<section class="card empty"><h2 class="h2">עוד אין עובדים</h2><p class="sub">מוסיפים עובד/ת עם שם ומספר אישי, או מייבאים את כל הרשימה מקובץ אקסל.</p></section>');
 }
 
 function viewSetup() {
@@ -1493,6 +1572,11 @@ function viewSetup() {
   return '<section class="pagehead"><div><h1 class="h1">הגדרות</h1><p class="sub">התפקידים, המשמרות והכללים שלפיהם נבנה הסידור.</p></div></section>' +
     '<section class="card stack"><h2 class="h2">החנות</h2><div class="field"><label class="label" for="storeInput">שם החנות או הסניף</label>' +
     '<input class="input" id="storeInput" data-bind="store.name" value="' + esc(state.store.name) + '" autocomplete="off"></div></section>' +
+    '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם הקוד הזה.</p></div>' +
+    '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת (4 עד 12 ספרות)</label>' +
+    '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft != null ? ui.codeDraft : state.managerCode) + '" inputmode="numeric" autocomplete="off"></div>' +
+    '<button type="submit" class="btn" id="btnCodeSave">שמירת הקוד</button></form>' +
+    (ui.codeErr ? '<p class="err" role="alert">' + ui.codeErr + '</p>' : '') + '</section>' +
     '<section class="card stack"><div><h2 class="h2">תפקידים</h2><p class="sub">למשל קופאי/ת, אחראי/ת משמרת, או אחריות על משימה מסוימת. הקשה על הצבע מחליפה את הסימון.</p></div>' + roles +
     '<div><button type="button" class="btn" id="btnAddRole" data-act="roleAdd">' + icon('plus') + 'תפקיד</button></div></section>' +
     '<section class="card stack"><div><h2 class="h2">משמרות ותקן איוש</h2><p class="sub">לכל משמרת: שעות, כמה עובדים נדרשים מכל תפקיד, ובאילו ימים היא פעילה.</p></div>' +
@@ -1503,24 +1587,45 @@ function viewSetup() {
     stepper('rest', state.rules.minRest, 'rest', '', 0, 16) + '</div>' +
     '<p class="sub">השיבוץ האוטומטי משבץ רק מי שהגיש/ה זמינות, מוגדר/ת לתפקיד ולא עבר/ה את מקסימום המשמרות. הוא נותן עדיפות למשמרות מועדפות ומשתדל לחלק את העומס באופן שווה. שיבוץ שנעשה ידנית ננעל ולא משתנה.</p></section>' +
     '<section class="card stack"><h2 class="h2">על האב־טיפוס</h2>' +
-    '<p class="sub">הנתונים נשמרים בדפדפן של המכשיר הזה בלבד, ותצוגת העובד/ת היא הדמיה. בגרסה מלאה כל עובד/ת מגיש/ה זמינות מהטלפון האישי והמנהל/ת רואה הכול במקום אחד.</p>' +
-    '<div>' + (ui.confirm === 'reset'
-      ? '<span class="confirm"><button type="button" class="btn btn-danger-solid" id="cf-reset" data-act="reset">כן, לאפס הכול</button><button type="button" class="btn" data-act="confirmNo">ביטול</button></span>'
-      : '<button type="button" class="btn btn-danger" id="cf-reset" data-act="confirmAsk" data-key="reset">' + icon('undo') + 'איפוס לנתוני הדוגמה</button>') + '</div></section>';
+    '<p class="sub">הנתונים נשמרים בדפדפן של המכשיר הזה בלבד, והכניסה בשם ובמספר היא הדמיה שלא מגינה עליהם. כדי שכל עובד/ת יגיש/ה זמינות מהטלפון האישי והמנהל/ת יראה הכול במקום אחד, צריך לחבר את האתר למסד נתונים משותף.</p>' +
+    '<div>' + resetBtn() + '</div></section>';
+}
+
+/* ---------- sign-in ---------- */
+function resetBtn() {
+  return ui.confirm === 'reset'
+    ? '<span class="confirm"><button type="button" class="btn btn-danger-solid" id="cf-reset" data-act="reset">כן, לאפס הכול</button><button type="button" class="btn" data-act="confirmNo">ביטול</button></span>'
+    : '<button type="button" class="btn btn-danger" id="cf-reset" data-act="confirmAsk" data-key="reset">' + icon('undo') + 'איפוס לנתוני הדוגמה</button>';
+}
+function viewSignin() {
+  const f = ui.signin, asEmp = f.tab === 'employee';
+  const demoEmp = empById('e_shadi');
+  const demo = state.example && state.managerCode === DEMO_CODE;
+  const fields = asEmp
+    ? '<div class="field"><label class="label" for="siName">שם</label><input class="input" id="siName" data-bind="si.name" value="' + esc(f.name) + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+      '<div class="field"><label class="label" for="siNumber">מספר אישי</label><input class="input" id="siNumber" data-bind="si.number" value="' + esc(f.number) + '" inputmode="numeric" autocomplete="off"></div>'
+    : '<div class="field"><label class="label" for="siCode">קוד מנהל/ת</label><input class="input" id="siCode" type="password" data-bind="si.code" value="' + esc(f.code) + '" inputmode="numeric" autocomplete="off"></div>';
+  return '<section class="signin">' +
+    '<div class="signin-h"><h1 class="h1">כניסה לסידור העבודה</h1><p class="sub">' + esc(state.store.name) + '</p></div>' +
+    '<div class="seg" role="group" aria-label="סוג הכניסה">' +
+    '<button type="button" class="seg-b" id="segEmp" data-act="signTab" data-tab="employee" aria-pressed="' + asEmp + '">עובד/ת</button>' +
+    '<button type="button" class="seg-b" id="segMgr" data-act="signTab" data-tab="manager" aria-pressed="' + !asEmp + '">מנהל/ת</button></div>' +
+    '<form class="card form" id="signForm" data-form="signIn" novalidate>' + fields +
+    (f.err ? '<p class="err" role="alert">' + f.err + '</p>' : '') +
+    '<button type="submit" class="btn btn-primary btn-block" id="btnSignIn">כניסה</button></form>' +
+    (demo ? '<div class="demo"><strong>נתוני דוגמה לכניסה</strong><span>מנהל/ת: קוד ' + ltr(DEMO_CODE) +
+      (demoEmp && demoEmp.number === '1004' ? ' · עובד/ת: ' + esc(demoEmp.name) + ', מספר אישי ' + ltr('1004') : '') + '</span>' +
+      '<div class="demo-row"><button type="button" class="btn" id="demoMgr" data-act="demoIn" data-role="manager">כניסה כמנהל/ת</button>' +
+      (demoEmp ? '<button type="button" class="btn" id="demoEmp" data-act="demoIn" data-role="employee">כניסה בתור ' + esc(demoEmp.name) + '</button>' : '') + '</div></div>' : '') +
+    '<div class="signin-foot"><p class="sub">אב־טיפוס: הנתונים נשמרים במכשיר הזה בלבד.</p>' + resetBtn() + '</div>' +
+    '</section>';
 }
 
 /* ---------- employee views ---------- */
-function who() {
-  return '<section class="who"><label class="who-l" for="meSel">הדמיה: כניסה בתור</label>' +
-    '<select class="input who-s" id="meSel" data-bind="me">' + state.employees.map(e => '<option value="' + e.id + '"' + (e.id === state.prefs.me ? ' selected' : '') + '>' + esc(e.name) + '</option>').join('') + '</select></section>';
-}
-const noEmp = () => '<section class="card empty"><h1 class="h2">עוד אין עובדים</h1><p class="sub">מוסיפים עובדים בלשונית הצוות, במצב מנהל/ת.</p></section>';
-
 function viewMyAvail() {
   const me = currentMe();
-  if (!me) return noEmp();
   const wk = ui.week, rec = availRec(wk, me.id), sub = rec && rec.submittedAt, pub = state.weeks[wk].published;
-  return who() + '<section class="wk-head">' + weekNav() + '</section>' +
+  return '<section class="wk-head">' + weekNav() + '</section>' +
     (pub ? '<p class="banner">' + icon('calendar') + '<span>הסידור לשבוע הזה כבר פורסם. שינוי בזמינות לא יעדכן אותו מעצמו, כדאי לדבר עם המנהל/ת.</span></p>' : '') +
     (sub ? '<p class="banner banner-ok">' + icon('check') + '<span>הזמינות הוגשה ' + stamp(sub) + '. שינויים נשמרים מיד.</span></p>'
       : '<p class="banner banner-warn">' + icon('alert') + '<span>עוד לא הגשת זמינות לשבוע הזה.</span></p>') +
@@ -1532,9 +1637,8 @@ function viewMyAvail() {
 
 function viewMyShifts() {
   const me = currentMe();
-  if (!me) return noEmp();
   const wk = ui.week, pub = state.weeks[wk].published;
-  const head = who() + '<section class="wk-head">' + weekNav() + '</section>';
+  const head = '<section class="wk-head">' + weekNav() + '</section>';
   if (!pub) {
     return head + '<section class="card empty"><h1 class="h2">הסידור לשבוע הזה עוד לא פורסם</h1>' +
       '<p class="sub">כשהמנהל/ת יפרסם את הסידור, המשמרות שלך יופיעו כאן.</p>' +
@@ -1689,6 +1793,7 @@ const SHEETS = {
     return {
       title: d.id ? 'עריכת עובד/ת' : 'עובד/ת חדש/ה',
       body: '<div class="field"><label class="label" for="empName">שם</label><input class="input" id="empName" data-bind="draft.name" value="' + esc(d.name) + '" autocomplete="off" placeholder="למשל: נועה"></div>' +
+        '<div class="field"><label class="label" for="empNumber">מספר אישי (לכניסה למערכת)</label><input class="input" id="empNumber" data-bind="draft.number" value="' + esc(d.number || '') + '" inputmode="numeric" autocomplete="off" placeholder="3 עד 12 ספרות"></div>' +
         '<div class="field"><span class="label">תפקידים שהעובד/ת יכול/ה למלא</span><div class="pick">' +
         state.roles.map(r => '<button type="button" class="pickbtn" id="er-' + r.id + '" aria-pressed="' + d.roles.includes(r.id) + '" data-act="empRole" data-id="' + r.id + '">' + icon('check') + roleChip(r.id) + '</button>').join('') + '</div></div>' +
         '<div class="field field-row"><span class="label">מקסימום משמרות בשבוע</span>' + stepper('emax', d.max, 'empMax', '', 1, 7) + '</div>' +
@@ -1697,12 +1802,182 @@ const SHEETS = {
         (d.id ? confirmBtn('emp-' + d.id, 'מחיקה', 'empDel', '', 'btn btn-danger') : '<button type="button" class="btn" data-act="close">ביטול</button>'),
     };
   },
+  import(s) {
+    const plan = importPlan(s.rows);
+    const n = k => plan.filter(p => p.kind === k).length;
+    const taken = new Set(plan.filter(p => p.emp).map(p => p.emp.id));
+    const gone = state.employees.filter(e => !taken.has(e.id));
+    const unknown = Array.from(new Set(plan.reduce((a, p) => a.concat(p.unknown), [])));
+    const label = { new: 'חדש/ה', upd: 'עדכון', same: 'ללא שינוי', err: 'לא ייובא' };
+    const rows = plan.map(p => {
+      const roles = p.roles ? p.roles.map(id => roleById(id).name).join(', ') : '';
+      const sub = p.kind === 'err' ? 'שורה ' + p.row + ': ' + p.err
+        : 'מס׳ ' + ltr(p.number) + (p.renum ? ' (מספר חדש)' : '') + (roles ? ' · ' + esc(roles) : '');
+      return '<div class="cand"><span class="cand-n">' + esc(p.name || '(ללא שם)') + '</span><span class="cand-s' + (p.kind === 'err' ? ' is-warn' : '') + '">' + sub + '</span>' +
+        '<span class="cand-go st-' + p.kind + '">' + label[p.kind] + '</span></div>';
+    }).join('');
+    const todo = n('new') + n('upd') + (s.remove ? gone.length : 0);
+    return {
+      title: 'ייבוא עובדים מאקסל', sub: esc(s.file),
+      body: '<div class="chips">' +
+        (n('new') ? '<span class="chip chip-ok">' + many(n('new'), 'עובד/ת חדש/ה', 'חדשים') + '</span>' : '') +
+        (n('upd') ? '<span class="chip">' + many(n('upd'), 'עדכון אחד', 'עדכונים') + '</span>' : '') +
+        (n('same') ? '<span class="chip">' + n('same') + ' ללא שינוי</span>' : '') +
+        (n('err') ? '<span class="chip chip-bad">' + many(n('err'), 'שורה אחת לא תיובא', 'שורות לא ייובאו') + '</span>' : '') + '</div>' +
+        (unknown.length ? '<p class="banner banner-warn">' + icon('alert') + '<span>תפקידים שלא קיימים בהגדרות ולכן דולגו: ' + unknown.map(esc).join(', ') + '.</span></p>' : '') +
+        '<div class="cands">' + rows + '</div>' +
+        (gone.length ? '<label class="check" for="impRemove"><input type="checkbox" id="impRemove" data-bind="imp.remove"' + (s.remove ? ' checked' : '') + '>' +
+          '<span>להסיר מהצוות ' + many(gone.length, 'עובד/ת אחד/ת שלא מופיע/ה', 'עובדים שלא מופיעים') + ' בקובץ: ' + gone.map(e => esc(e.name)).join(', ') + '</span></label>' : ''),
+      foot: '<button type="button" class="btn btn-primary" id="btnImportGo" data-act="importGo"' + (todo ? '' : ' disabled') + '>' + (todo ? 'ייבוא לצוות' : 'אין מה לעדכן') + '</button>' +
+        '<button type="button" class="btn" data-act="close">ביטול</button>',
+    };
+  },
 };
+
+/* ---------- Excel (employee list in and out) ---------- */
+let excelLoading = null;
+function loadExcel() {
+  if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  if (!excelLoading) {
+    excelLoading = new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = EXCEL_SRC;
+      el.onload = () => (window.ExcelJS ? resolve(window.ExcelJS) : reject({ code: 'lib' }));
+      el.onerror = () => { excelLoading = null; reject({ code: 'lib' }); };
+      document.head.appendChild(el);
+    });
+  }
+  return excelLoading;
+}
+const cellText = c => { try { return String(c.text == null ? '' : c.text).trim(); } catch (e) { return ''; } };
+// Read employee rows from a workbook: find the header row by its column titles, then one row per person.
+function parseEmployees(wb) {
+  const RE = { name: /שם|name/i, number: /מספר|קוד|טלפון|נייד|number|phone|code/i, roles: /תפקיד|role/i, max: /מקס|max/i };
+  let found = null;
+  wb.eachSheet(ws => {
+    if (found) return;
+    for (let r = 1; r <= Math.min(ws.rowCount, 15) && !found; r++) {
+      const cols = {};
+      ws.getRow(r).eachCell((c, i) => {
+        const t = cellText(c);
+        for (const k in RE) if (!cols[k] && RE[k].test(t) && Object.keys(cols).every(q => cols[q] !== i)) { cols[k] = i; break; }
+      });
+      if (cols.name && cols.number) found = { ws, head: r, cols };
+    }
+  });
+  if (!found) { const ws = wb.worksheets[0]; if (!ws) return []; found = { ws, head: 0, cols: { name: 1, number: 2, roles: 3, max: 4 } }; }
+  const ws = found.ws, cols = found.cols, out = [], seen = new Set();
+  for (let r = found.head + 1; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const name = cellText(row.getCell(cols.name)).replace(/\s+/g, ' ');
+    const number = normNum(cellText(row.getCell(cols.number)));
+    if (!name && !number) continue;
+    if (/דוגמה/.test(name)) continue;
+    const item = { row: r, name, number, roles: null, unknown: [], max: null, err: '' };
+    if (!name) item.err = 'חסר שם';
+    else if (!number) item.err = 'חסר מספר אישי';
+    else if (!/^\d{3,12}$/.test(number)) item.err = 'המספר האישי צריך להיות 3 עד 12 ספרות';
+    else if (number === state.managerCode) item.err = 'המספר שמור לקוד המנהל/ת';
+    else if (seen.has(number)) item.err = 'המספר מופיע פעמיים בקובץ';
+    else seen.add(number);
+    if (cols.roles) {
+      const t = cellText(row.getCell(cols.roles));
+      if (t) {
+        item.roles = [];
+        t.split(/[,;،|\n]+/).map(x => x.trim()).filter(Boolean).forEach(x => {
+          const role = state.roles.find(q => normName(q.name) === normName(x));
+          if (!role) item.unknown.push(x); else if (!item.roles.includes(role.id)) item.roles.push(role.id);
+        });
+      }
+    }
+    if (cols.max) { const m = parseInt(cellText(row.getCell(cols.max)), 10); if (m >= 1 && m <= 7) item.max = m; }
+    out.push(item);
+  }
+  return out;
+}
+// Match file rows to the current team: by number first, then by name for people whose number changed.
+function importPlan(rows) {
+  const inFile = new Set(rows.filter(r => !r.err).map(r => r.number));
+  const taken = new Set();
+  const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+  return rows.map(r => {
+    if (r.err) return Object.assign({ kind: 'err', emp: null, renum: false }, r);
+    let emp = state.employees.find(e => e.number === r.number) || null, renum = false;
+    if (!emp) {
+      emp = state.employees.find(e => normName(e.name) === normName(r.name) && !inFile.has(e.number) && !taken.has(e.id)) || null;
+      renum = !!emp;
+    }
+    let kind = 'new';
+    if (emp) {
+      taken.add(emp.id);
+      kind = !renum && emp.name === r.name && (!r.roles || sameSet(r.roles, emp.roles)) && (!r.max || r.max === emp.max) ? 'same' : 'upd';
+    }
+    return Object.assign({ kind, emp, renum }, r);
+  });
+}
+async function importFile(file) {
+  toast('קורא את הקובץ…');
+  let rows;
+  try {
+    const XL = await loadExcel();
+    const wb = new XL.Workbook();
+    await wb.xlsx.load(await file.arrayBuffer());
+    rows = parseEmployees(wb);
+  } catch (err) {
+    toast(err && err.code === 'lib' ? 'לא הצלחתי לטעון את רכיב האקסל. כדאי לבדוק את החיבור לרשת ולנסות שוב.' : 'לא הצלחתי לקרוא את הקובץ. צריך קובץ xlsx במבנה של התבנית.');
+    return;
+  }
+  clearToast();
+  if (!rows.length) { toast('לא נמצאו בקובץ שורות של עובדים.'); return; }
+  openSheet({ type: 'import', file: file.name, rows, remove: false }, 'btnImport');
+}
+async function buildWorkbook() {
+  const XL = await loadExcel();
+  const wb = new XL.Workbook();
+  const ws = wb.addWorksheet('עובדים', { views: [{ rightToLeft: true, state: 'frozen', ySplit: 1 }] });
+  ws.columns = [
+    { header: 'שם', key: 'name', width: 22 },
+    { header: 'מספר אישי', key: 'number', width: 16 },
+    { header: 'תפקידים', key: 'roles', width: 38 },
+    { header: 'מקסימום משמרות בשבוע', key: 'max', width: 26 },
+  ];
+  state.employees.forEach(e => ws.addRow({
+    name: e.name, number: e.number, max: e.max,
+    roles: e.roles.map(id => (roleById(id) || {}).name).filter(Boolean).join(', '),
+  }));
+  ws.eachRow(row => row.eachCell(c => { c.font = { name: 'Arial', size: 11 }; }));
+  ws.getRow(1).eachCell(c => {
+    c.font = { name: 'Arial', size: 11, bold: true };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE55C' } };
+  });
+  ws.getColumn(2).numFmt = '@';   // keep the numbers as text so a leading zero survives
+  return new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_MIME });
+}
+// Inside the Claude viewer a page cannot start a download itself, so it asks the viewer to save.
+async function saveFile(filename, blob) {
+  if (window.claude && window.claude.use) {
+    let dl = null;
+    try { dl = await window.claude.use('downloads'); } catch (e) { /* treated as unavailable */ }
+    if (!dl) { toast('אי אפשר לשמור קובץ בתצוגה הזו.'); return; }
+    try { await dl.save({ filename, data: blob }); toast('הקובץ נשמר.'); }
+    catch (err) {
+      const code = err && err.code;
+      if (code === 'declined') clearToast();
+      else toast(code === 'rate_limited' ? 'יש כבר בקשת שמירה פתוחה. אפשר לנסות שוב בעוד רגע.' : 'אי אפשר לשמור קובץ בתצוגה הזו.');
+    }
+    return;
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('הקובץ ירד למכשיר.');
+}
 
 /* ---------- rendering ---------- */
 function tabsHtml() {
   const pending = state.employees.filter(e => !isSubmitted(ui.week, e.id)).length;
-  return Object.keys(VIEWS).filter(id => VIEWS[id].mode === state.prefs.mode).map(id => {
+  return Object.keys(VIEWS).filter(id => VIEWS[id].mode === state.prefs.session.role).map(id => {
     const v = VIEWS[id];
     return '<button type="button" class="tab" data-act="nav" data-view="' + id + '"' + (ui.view === id ? ' aria-current="page"' : '') + '>' + icon(v.icon) + '<span>' + v.label + '</span>' +
       (id === 'availability' && pending ? '<i class="badge" aria-label="' + pending + ' טרם הגישו">' + pending + '</i>' : '') + '</button>';
@@ -1723,17 +1998,30 @@ function renderSheet(opening) {
 }
 function render() {
   const active = document.activeElement && document.activeElement.id;
-  if (!VIEWS[ui.view] || VIEWS[ui.view].mode !== state.prefs.mode) ui.view = state.prefs.mode === 'manager' ? 'schedule' : 'my-availability';
-  syncWeek(ui.week);
-  $('#storeName').textContent = state.store.name;
-  $('#modeManager').setAttribute('aria-pressed', state.prefs.mode === 'manager');
-  $('#modeEmployee').setAttribute('aria-pressed', state.prefs.mode === 'employee');
-  const tabs = tabsHtml();
-  $('#tabsTop').innerHTML = tabs;
-  $('#tabsBottom').innerHTML = tabs;
+  let s = state.prefs.session;
+  if (s && s.role === 'employee' && !empById(s.id)) s = state.prefs.session = null;
   const main = $('#view');
-  main.className = 'main' + (VIEWS[ui.view].wide ? '' : ' is-narrow');
-  main.innerHTML = VIEWS[ui.view].html();
+  $('#storeName').textContent = state.store.name;
+  $('#tabsBottom').hidden = !s;
+  if (!s) {
+    ui.sheet = null;
+    $('#sess').innerHTML = '';
+    $('#tabsTop').innerHTML = '';
+    $('#tabsBottom').innerHTML = '';
+    main.className = 'main is-narrow';
+    main.innerHTML = viewSignin();
+  } else {
+    if (!VIEWS[ui.view] || VIEWS[ui.view].mode !== s.role) ui.view = s.role === 'manager' ? 'schedule' : 'my-availability';
+    syncWeek(ui.week);
+    $('#sess').innerHTML = '<span class="sess-who"><span class="sess-n">' + (s.role === 'manager' ? 'מנהל/ת' : esc(empById(s.id).name)) + '</span>' +
+      (s.role === 'employee' ? '<span class="sess-r">עובד/ת</span>' : '') + '</span>' +
+      '<button type="button" class="sess-out" id="btnOut" data-act="signOut">יציאה</button>';
+    const tabs = tabsHtml();
+    $('#tabsTop').innerHTML = tabs;
+    $('#tabsBottom').innerHTML = tabs;
+    main.className = 'main' + (VIEWS[ui.view].wide ? '' : ' is-narrow');
+    main.innerHTML = VIEWS[ui.view].html();
+  }
   renderSheet(false);
   save();
   if (active) { const el = document.getElementById(active); if (el && el !== document.activeElement) el.focus({ preventScroll: true }); }
@@ -1761,10 +2049,17 @@ function toast(html, undo) {
 function go(view) {
   ui.view = view;
   ui.sheet = null;
+  ui.codeDraft = null;
+  ui.codeErr = '';
   clearToast();
   try { if (location.hash.slice(1) !== view) location.hash = view; } catch (e) { /* hash routing is optional */ }
   render();
   window.scrollTo(0, 0);
+}
+function startSession(session) {
+  state.prefs.session = session;
+  ui.signin = { tab: ui.signin.tab, name: '', number: '', code: '', err: '' };
+  go(session.role === 'manager' ? 'schedule' : 'my-availability');
 }
 const snapshot = wk => { ui.undo = { wk, data: JSON.stringify(state.weeks[wk]) }; };
 function resultToast(wk, lead) {
@@ -1776,7 +2071,82 @@ function resultToast(wk, lead) {
 
 /* ---------- actions ---------- */
 const actions = {
-  mode(ds) { state.prefs.mode = ds.mode; go(ds.mode === 'manager' ? 'schedule' : 'my-availability'); },
+  signTab(ds) {
+    ui.signin.tab = ds.tab; ui.signin.err = '';
+    render();
+    const inp = $(ds.tab === 'manager' ? '#siCode' : '#siName');
+    if (inp) inp.focus();
+  },
+  signIn() {
+    const f = ui.signin;
+    if (f.tab === 'manager') {
+      if (normNum(f.code) === state.managerCode) { startSession({ role: 'manager' }); return; }
+      f.err = 'הקוד שגוי.';
+    } else {
+      const name = normName(f.name), number = normNum(f.number);
+      const e = name && number && state.employees.find(x => x.number === number && normName(x.name) === name);
+      if (e) { startSession({ role: 'employee', id: e.id }); return; }
+      f.err = name && number ? 'השם והמספר לא תואמים לאף עובד/ת ברשימה. אפשר לבדוק אותם מול המנהל/ת.' : 'צריך למלא שם ומספר אישי.';
+    }
+    render();
+  },
+  demoIn(ds) { startSession(ds.role === 'manager' ? { role: 'manager' } : { role: 'employee', id: 'e_shadi' }); },
+  signOut() {
+    state.prefs.session = null;
+    ui.sheet = null;
+    clearToast();
+    try { if (location.hash) location.hash = ''; } catch (e) { /* hash routing is optional */ }
+    render();
+    window.scrollTo(0, 0);
+  },
+  codeSave() {
+    const code = normNum(ui.codeDraft != null ? ui.codeDraft : state.managerCode);
+    ui.codeErr = !/^\d{4,12}$/.test(code) ? 'הקוד צריך להיות 4 עד 12 ספרות.'
+      : state.employees.some(e => e.number === code) ? 'הקוד הזה כבר משמש כמספר אישי של עובד/ת.' : '';
+    if (ui.codeErr) { render(); return; }
+    state.managerCode = code;
+    ui.codeDraft = null;
+    render();
+    toast('קוד המנהל/ת עודכן.');
+  },
+  importPick() { const inp = $('#xlsxFile'); inp.value = ''; inp.click(); },
+  importGo() {
+    const s = ui.sheet, plan = importPlan(s.rows);
+    const ordered = ids => state.roles.map(r => r.id).filter(id => ids.includes(id));
+    const taken = new Set();
+    let added = 0, updated = 0, removed = 0;
+    for (const p of plan) {
+      if (p.kind === 'err') continue;
+      if (p.emp) {
+        taken.add(p.emp.id);
+        if (p.kind === 'same') continue;
+        p.emp.name = p.name; p.emp.number = p.number;
+        if (p.roles) p.emp.roles = ordered(p.roles);
+        if (p.max) p.emp.max = p.max;
+        updated++;
+      } else {
+        const id = uid('e_');
+        state.employees.push({ id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : [], max: p.max || 5 });
+        taken.add(id);
+        added++;
+      }
+    }
+    if (s.remove) {
+      const gone = state.employees.filter(e => !taken.has(e.id));
+      removed = gone.length;
+      state.employees = state.employees.filter(e => taken.has(e.id));
+      for (const wk in state.avail) for (const g of gone) delete state.avail[wk][g.id];
+    }
+    state.example = false;
+    ui.sheet = null;
+    render();
+    toast([added && 'נוספו ' + added, updated && 'עודכנו ' + updated, removed && 'הוסרו ' + removed].filter(Boolean).join(', ') + '.');
+  },
+  exportXlsx() {
+    toast('מכין את הקובץ…');
+    buildWorkbook().then(blob => saveFile('sadran-employees.xlsx', blob),
+      () => toast('לא הצלחתי לטעון את רכיב האקסל. כדאי לבדוק את החיבור לרשת ולנסות שוב.'));
+  },
   nav(ds) { go(ds.view); },
   week(ds) { ui.week = toKey(addDays(fromKey(ui.week), 7 * +ds.dir)); render(); },
   weekHome() { ui.week = defaultWeek(); render(); },
@@ -1899,27 +2269,32 @@ const actions = {
 
   emp(ds, el) {
     const e = ds.id && empById(ds.id);
-    openSheet({ type: 'emp', draft: e ? clone(e) : { id: null, name: '', roles: [], max: 5 }, err: '' }, el.id);
+    openSheet({ type: 'emp', draft: e ? clone(e) : { id: null, name: '', number: nextNumber(), roles: [], max: 5 }, err: '' }, el.id);
     if (!e) { const inp = $('#empName'); if (inp) inp.focus(); }
   },
   empRole(ds) { const r = ui.sheet.draft.roles, i = r.indexOf(ds.id); if (i < 0) r.push(ds.id); else r.splice(i, 1); render(); },
   empMax(ds) { const d = ui.sheet.draft; d.max = Math.min(7, Math.max(1, d.max + +ds.d)); render(); },
   empSave() {
-    const s = ui.sheet, d = s.draft, name = d.name.trim();
-    if (!name) { s.err = 'צריך למלא שם.'; render(); return; }
-    if (!d.roles.length) { s.err = 'צריך לבחור לפחות תפקיד אחד.'; render(); return; }
+    const s = ui.sheet, d = s.draft, name = d.name.trim().replace(/\s+/g, ' '), number = normNum(d.number);
+    const clash = state.employees.find(e => e.number === number && e.id !== d.id);
+    s.err = !name ? 'צריך למלא שם.'
+      : !number ? 'צריך למלא מספר אישי.'
+      : !/^\d{3,12}$/.test(number) ? 'המספר האישי צריך להיות 3 עד 12 ספרות.'
+      : number === state.managerCode ? 'המספר הזה שמור לקוד המנהל/ת.'
+      : clash ? 'המספר הזה כבר שייך ל' + esc(clash.name) + '.'
+      : !d.roles.length ? 'צריך לבחור לפחות תפקיד אחד.' : '';
+    if (s.err) { render(); return; }
     const roles = state.roles.map(r => r.id).filter(id => d.roles.includes(id));
-    if (d.id) Object.assign(empById(d.id), { name, roles, max: d.max });
-    else { const id = uid('e_'); state.employees.push({ id, name, roles, max: d.max }); if (!state.prefs.me) state.prefs.me = id; }
+    if (d.id) Object.assign(empById(d.id), { name, number, roles, max: d.max });
+    else state.employees.push({ id: uid('e_'), name, number, roles, max: d.max });
     ui.sheet = null;
     render();
-    toast(d.id ? 'הפרטים נשמרו.' : name + ' נוסף/ה לצוות.');
+    toast(d.id ? 'הפרטים נשמרו.' : esc(name) + ' נוסף/ה לצוות. מספר אישי: ' + ltr(number));
   },
   empDel() {
     const id = ui.sheet.draft.id;
     state.employees = state.employees.filter(e => e.id !== id);
     for (const wk in state.avail) delete state.avail[wk][id];
-    if (state.prefs.me === id) state.prefs.me = state.employees.length ? state.employees[0].id : null;
     ui.sheet = null;
     render();
     toast('העובד/ת נמחק/ה.');
@@ -1964,7 +2339,12 @@ const actions = {
   dayToggle(ds) { if (state.closed[ds.k]) delete state.closed[ds.k]; else state.closed[ds.k] = true; render(); },
   rest(ds) { state.rules.minRest = Math.min(16, Math.max(0, state.rules.minRest + +ds.d)); render(); },
   reset() {
+    const manager = state.prefs.session && state.prefs.session.role === 'manager';
     state = seed();
+    if (manager) state.prefs.session = { role: 'manager' };
+    ui.signin = { tab: 'employee', name: '', number: '', code: '', err: '' };
+    ui.codeDraft = null;
+    ui.codeErr = '';
     ui.week = defaultWeek();
     autoSchedule(ui.week, false);
     ui.undo = null;
@@ -1982,21 +2362,32 @@ document.addEventListener('click', e => {
   if (act !== 'confirmAsk') ui.confirm = null;
   if (actions[act]) actions[act](t.dataset, t, e);
 });
+document.addEventListener('submit', e => {
+  const f = e.target.dataset && e.target.dataset.form;
+  if (!f) return;
+  e.preventDefault();
+  ui.confirm = null;
+  if (actions[f]) actions[f](e.target.dataset, e.target, e);
+});
 document.addEventListener('input', e => {
   const t = e.target, b = t.dataset && t.dataset.bind;
-  if (!b || b === 'me') return;
+  if (!b || b === 'imp.remove') return;
   const v = t.value, id = t.dataset.id;
   const paint = (attr, text) => document.querySelectorAll('[' + attr + '="' + id + '"]').forEach(n => { n.textContent = text; });
+  if (b.slice(0, 3) === 'si.') { ui.signin[b.slice(3)] = v; return; }
+  if (b === 'code.draft') { ui.codeDraft = v; return; }
+  if (b === 'draft.name' || b === 'draft.number') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft[b.slice(6)] = v; return; }
   if (b === 'store.name') { state.store.name = v; $('#storeName').textContent = v; }
   else if (b === 'role.name') { roleById(id).name = v; paint('data-rn', v || 'ללא שם'); }
   else if (b === 'shift.name') { shiftById(id).name = v; paint('data-sn', v); }
   else if (b === 'shift.start' || b === 'shift.end') { if (!v) return; const sh = shiftById(id); sh[b.slice(6)] = v; paint('data-st', sh.start + '–' + sh.end); }
   else if (b === 'note') availRec(ui.week, id, true).note = v;
-  else if (b === 'draft.name') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft.name = v; return; }
   save();
 });
 document.addEventListener('change', e => {
-  if (e.target.dataset && e.target.dataset.bind === 'me') { state.prefs.me = e.target.value; render(); }
+  const t = e.target;
+  if (t.id === 'xlsxFile') { if (t.files && t.files[0]) importFile(t.files[0]); return; }
+  if (t.dataset && t.dataset.bind === 'imp.remove' && ui.sheet) { ui.sheet.remove = t.checked; render(); }
 });
 document.addEventListener('toggle', e => {
   const f = e.target.dataset && e.target.dataset.fold;
@@ -2004,15 +2395,14 @@ document.addEventListener('toggle', e => {
 }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && ui.sheet) closeSheet(); });
 window.addEventListener('hashchange', () => {
-  const h = location.hash.slice(1);
-  if (VIEWS[h] && h !== ui.view) { state.prefs.mode = VIEWS[h].mode; ui.view = h; ui.sheet = null; render(); }
+  const h = location.hash.slice(1), sess = state.prefs.session;
+  if (sess && VIEWS[h] && VIEWS[h].mode === sess.role && h !== ui.view) { ui.view = h; ui.sheet = null; render(); }
 });
 
 /* ---------- boot ---------- */
-const h = location.hash.slice(1);
-if (VIEWS[h]) { ui.view = h; state.prefs.mode = VIEWS[h].mode; }
-else ui.view = state.prefs.mode === 'employee' ? 'my-availability' : 'schedule';
-if (firstRun) autoSchedule(ui.week, false);   // open on a proposed roster rather than an empty sheet
+const h = location.hash.slice(1), sess = state.prefs.session;
+ui.view = sess && VIEWS[h] && VIEWS[h].mode === sess.role ? h : (sess && sess.role === 'employee' ? 'my-availability' : 'schedule');
+if (firstRun) autoSchedule(ui.week, false);   // the example opens on a proposed roster rather than an empty sheet
 render();
 })();
 </script>
