@@ -1,0 +1,3 @@
+# Sadran is a single static page with no build step.
+[build]
+  publish = "site"

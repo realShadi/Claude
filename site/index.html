@@ -798,6 +798,13 @@ textarea.input { padding: 10px 12px; min-height: 76px; resize: vertical; line-he
 .cand-go.st-upd { color: var(--accent); }
 .cand-go.st-same { color: var(--ink-3); }
 .cand-go.st-err { color: var(--bad); }
+.sync { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: .75rem; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+.sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.sync.is-busy::before { background: var(--line-2); }
+.sync.is-bad { color: var(--warn); }
+.sync.is-bad::before { background: var(--warn); }
+@media (max-width: 479px) { .sync:not(.is-bad) .sync-t { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
+.gate { display: grid; justify-items: center; gap: 10px; padding-block: 64px; color: var(--ink-3); }
 
 /* ---------- sheets ---------- */
 .sheet-wrap {
@@ -980,6 +987,12 @@ const COLORS = 6;
 const DEMO_CODE = '2468';
 const EXCEL_SRC = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+// The shared database. The key is the project's publishable key, which is meant to sit in a web page:
+// it only lets the page call the sadran_* functions, and each of those checks who is signed in.
+// Inside the Claude viewer outside connections are blocked, so there the page runs as a one-device demo.
+const BACKEND = { url: 'https://xdjeijflnutqoxzzodqh.supabase.co', key: 'sb_publishable_3hoq5cJtZL-UnY7WrO6kuw_I9OnWsAT' };
+const REMOTE = !!(BACKEND.url && BACKEND.key) && !(window.claude && typeof window.claude.use === 'function');
+const TOKEN_KEY = 'sadran.token';
 
 /* ---------- helpers ---------- */
 const $ = (s, el) => (el || document).querySelector(s);
@@ -1125,15 +1138,31 @@ function migrate(s) {
   }
   return s;
 }
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+function save() {
+  if (REMOTE) { queueChanges(); return; }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+}
+// Settings and lists before anything arrives from the shared database.
+function blankState() {
+  const s = seed();
+  s.example = false;
+  s.managerCode = null;
+  s.store = { name: '' };
+  s.employees = [];
+  s.avail = {};
+  s.weeks = {};
+  s.prefs = { session: null, demoNote: false };
+  return s;
+}
 
-let state = load();
-const firstRun = !state;
-if (!state) state = seed();
+let state, firstRun = false;
+if (REMOTE) state = blankState();
+else { state = load(); firstRun = !state; if (!state) state = seed(); }
 
 const ui = {
   view: 'schedule', week: defaultWeek(), sheet: null, confirm: null, undo: null, fresh: false, open: {},
   signin: { tab: 'employee', name: '', number: '', code: '', err: '' },
+  setup: { code: '', code2: '', err: '' },
   codeDraft: null, codeErr: '',
 };
 
@@ -1159,6 +1188,243 @@ function nextNumber() {
   let n = nums.length ? Math.max.apply(null, nums.map(Number)) + 1 : 1001;
   while (String(n) === state.managerCode) n++;
   return String(n);
+}
+
+/* ---------- shared database ----------
+   Everything the signed-in person may see is loaded in one call. Each change is then sent on its
+   own (settings, one week's roster, one person's availability, one employee), shortly after the
+   last edit, and the page reloads from the server every 30 seconds while nothing is being saved. */
+const net = { phase: REMOTE ? 'loading' : 'ready', token: null, busy: false, base: null, timers: {}, sending: {}, failures: 0, refreshing: false };
+const NET_ERR = 'אין חיבור לשרת. כדאי לבדוק את האינטרנט ולנסות שוב.';
+function tokenGet() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
+function tokenSet(t) {
+  net.token = t || null;
+  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* then the sign-in lasts for this tab only */ }
+}
+// JSON with object keys in a fixed order, so two copies of the same data compare equal.
+function canon(v) {
+  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+  return v === undefined ? 'null' : JSON.stringify(v);
+}
+async function rpc(fn, args, keepalive) {
+  let res, text = '', data = null;
+  try {
+    res = await fetch(BACKEND.url + '/rest/v1/rpc/' + fn, {
+      method: 'POST', cache: 'no-store', keepalive: !!keepalive,
+      headers: { apikey: BACKEND.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args || {}),
+    });
+    text = await res.text();
+  } catch (e) { throw { code: 'network' }; }
+  try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
+  if (!res.ok) {
+    const m = (data && data.message) || '';
+    throw { code: m === 'auth' || m === 'forbidden' ? m : res.status >= 500 ? 'server' : 'bad', message: m };
+  }
+  return data;
+}
+const cfgOf = () => ({ store: state.store, roles: state.roles, shifts: state.shifts, req: state.req, closed: state.closed, rules: state.rules });
+const weekOf = w => ({ slots: w.slots || {}, over: w.over || {}, published: w.published || null });
+const availOf = r => ({ slots: r.slots || {}, note: r.note || '', submitted: !!r.submittedAt });
+const empOf = e => ({ id: e.id, name: e.name, number: e.number, roles: e.roles, max: e.max });
+function weekHasContent(w) {
+  if (w.published || Object.keys(w.over || {}).length) return true;
+  for (const k in w.slots) if (w.slots[k].some(p => p.emp)) return true;
+  return false;
+}
+const availHasContent = r => !!(r.submittedAt || r.note || Object.keys(r.slots || {}).length);
+// Remember what the server holds, to send only what changes afterwards.
+function takeBase() {
+  const b = { config: canon(cfgOf()), weeks: {}, avail: {}, emps: {} };
+  for (const wk in state.weeks) b.weeks[wk] = canon(weekOf(state.weeks[wk]));
+  for (const wk in state.avail) for (const id in state.avail[wk]) b.avail[wk + '|' + id] = canon(availOf(state.avail[wk][id]));
+  for (const e of state.employees) b.emps[e.id] = canon(empOf(e));
+  net.base = b;
+}
+function applyServer(d) {
+  const c = d.config || {};
+  state.store = c.store || { name: '' };
+  state.roles = c.roles || [];
+  state.shifts = c.shifts || [];
+  state.req = c.req || {};
+  state.closed = c.closed || {};
+  state.rules = c.rules || { minRest: 10 };
+  state.employees = d.employees || [];
+  state.avail = d.avail || {};
+  state.weeks = {};
+  const ws = d.weeks || {};
+  for (const wk in ws) state.weeks[wk] = { slots: ws[wk].slots || {}, over: ws[wk].over || {}, published: ws[wk].published || null };
+  state.prefs.session = d.role === 'manager' ? { role: 'manager' } : { role: 'employee', id: d.me };
+  takeBase();
+}
+const pending = () => Object.keys(net.timers).length + Object.keys(net.sending).length;
+const isTyping = () => { const a = document.activeElement; return !!a && (a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && a.type !== 'checkbox')); };
+function queue(key, delay) {
+  clearTimeout(net.timers[key]);
+  net.timers[key] = setTimeout(() => flushKey(key), net.failures ? Math.min(30000, 2000 * Math.pow(2, net.failures - 1)) : delay);
+}
+function queueChanges() {
+  const s = state.prefs.session;
+  if (net.phase !== 'ready' || !net.base || !s) return;
+  const mgr = s.role === 'manager', b = net.base;
+  if (mgr) {
+    if (canon(cfgOf()) !== b.config) queue('c', 900);
+    for (const wk in state.weeks) {
+      const w = state.weeks[wk];
+      if (canon(weekOf(w)) === b.weeks[wk] || (!(wk in b.weeks) && !weekHasContent(w))) continue;
+      queue('w:' + wk, 700);
+    }
+    for (const e of state.employees) if (e.id in b.emps && canon(empOf(e)) !== b.emps[e.id]) queue('e:' + e.id, 900);
+  }
+  for (const wk in state.avail) for (const id in state.avail[wk]) {
+    if (!mgr && id !== s.id) continue;
+    const key = wk + '|' + id, r = state.avail[wk][id];
+    if (canon(availOf(r)) === b.avail[key] || (!(key in b.avail) && !availHasContent(r))) continue;
+    queue('a:' + key, 700);
+  }
+  paintSync();
+}
+// The request that saves one queued change, and what to remember once it is saved.
+function job(key) {
+  const t = { p_token: net.token }, kind = key[0], rest = key.slice(2);
+  if (kind === 'c') {
+    const v = cfgOf(), sig = canon(v);
+    return { fn: 'sadran_save_config', args: Object.assign(t, { p_config: v }), done: () => { net.base.config = sig; } };
+  }
+  if (kind === 'w') {
+    const w = state.weeks[rest];
+    if (!w) return null;
+    const v = weekOf(w), sig = canon(v);
+    return { fn: 'sadran_save_week', args: Object.assign(t, { p_week: rest, p_slots: v.slots, p_over: v.over, p_published: v.published }), done: () => { net.base.weeks[rest] = sig; } };
+  }
+  if (kind === 'e') {
+    const e = empById(rest);
+    if (!e) return null;
+    const v = empOf(e), sig = canon(v);
+    return { fn: 'sadran_save_employee', args: Object.assign(t, { p_employee: v }), done: out => { if (out && out.ok) net.base.emps[rest] = sig; else throw { code: 'bad' }; } };
+  }
+  const i = rest.indexOf('|'), wk = rest.slice(0, i), id = rest.slice(i + 1), r = (state.avail[wk] || {})[id];
+  if (!r) return null;
+  const v = availOf(r), sig = canon(v);
+  return {
+    fn: 'sadran_save_availability',
+    args: Object.assign(t, { p_week: wk, p_employee: id, p_slots: v.slots, p_note: v.note, p_submitted: v.submitted }),
+    done: out => { net.base.avail[rest] = sig; if (out && out.submittedAt && r.submittedAt) r.submittedAt = out.submittedAt; },
+  };
+}
+async function flushKey(key, keepalive) {
+  clearTimeout(net.timers[key]);
+  delete net.timers[key];
+  if (net.sending[key] || !net.token) return false;
+  const j = job(key);
+  if (!j) return true;
+  net.sending[key] = true;
+  paintSync();
+  let ok = false;
+  try {
+    j.done(await rpc(j.fn, j.args, keepalive));
+    net.failures = 0;
+    ok = true;
+  } catch (err) {
+    delete net.sending[key];
+    if (err.code === 'auth') { endSession('expired'); return false; }
+    if (err.code !== 'network' && err.code !== 'server') {
+      net.failures = 0;
+      toast('שינוי אחד לא נשמר, ולכן הנתונים נטענו מחדש מהשרת.');
+      refresh(true);
+      return false;
+    }
+    net.failures = Math.min(net.failures + 1, 6);
+  }
+  delete net.sending[key];
+  queueChanges();
+  paintSync();
+  return ok;
+}
+function flushAll(keepalive) { Object.keys(net.timers).forEach(k => flushKey(k, keepalive)); }
+const waitIdle = ms => new Promise(done => { const t0 = Date.now(); (function tick() { if (!pending() || Date.now() - t0 > ms) done(); else setTimeout(tick, 100); })(); });
+async function refresh(force) {
+  if (!REMOTE || net.phase !== 'ready' || !net.token || net.refreshing) return;
+  if (!force && (pending() || ui.sheet || isTyping())) return;
+  net.refreshing = true;
+  try {
+    const d = await rpc('sadran_load', { p_token: net.token });
+    if (!force && (pending() || ui.sheet || isTyping())) return;
+    const view = () => canon({ c: cfgOf(), e: state.employees, a: state.avail, w: state.weeks, s: state.prefs.session });
+    const before = view();
+    applyServer(d);
+    syncWeek(ui.week);
+    if (view() !== before) render();
+  } catch (err) {
+    if (err.code === 'auth') endSession('expired');
+  } finally {
+    net.refreshing = false;
+  }
+}
+function paintSync() {
+  const el = document.getElementById('syncState');
+  if (!el) return;
+  const busy = pending() > 0, bad = net.failures > 0;
+  el.className = 'sync' + (bad ? ' is-bad' : busy ? ' is-busy' : '');
+  el.title = bad ? 'אין חיבור לשרת. השינויים יישמרו כשהחיבור יחזור.' : busy ? 'שומר את השינויים' : 'כל השינויים נשמרו';
+  el.innerHTML = '<span class="sync-t">' + (bad ? 'לא נשמר' : busy ? 'שומר…' : 'נשמר') + '</span>';
+}
+function endSession(reason) {
+  Object.keys(net.timers).forEach(k => clearTimeout(net.timers[k]));
+  net.timers = {};
+  net.sending = {};
+  net.failures = 0;
+  net.base = null;
+  tokenSet(null);
+  const store = state.store;
+  state = blankState();
+  state.store = store;
+  ui.sheet = null;
+  ui.undo = null;
+  net.phase = 'signin';
+  try { if (location.hash) location.hash = ''; } catch (e) { /* hash routing is optional */ }
+  render();
+  window.scrollTo(0, 0);
+  if (reason === 'expired') toast('הכניסה הסתיימה. צריך להיכנס שוב.');
+  if (reason === 'removed') toast('העובד/ת הזה/זו כבר לא ברשימת הצוות.');
+}
+// Load everything for the signed-in person and open their first screen. False: the sign-in is no longer valid.
+async function enter() {
+  net.phase = 'loading';
+  render();
+  try {
+    applyServer(await rpc('sadran_load', { p_token: net.token }));
+  } catch (err) {
+    if (err.code === 'auth') { tokenSet(null); return false; }
+    net.phase = 'down';
+    render();
+    return true;
+  }
+  net.phase = 'ready';
+  net.failures = 0;
+  const s = state.prefs.session, h = location.hash.slice(1);
+  ui.view = VIEWS[h] && VIEWS[h].mode === s.role ? h : (s.role === 'manager' ? 'schedule' : 'my-availability');
+  ui.week = defaultWeek();
+  ui.signin = { tab: ui.signin.tab, name: '', number: '', code: '', err: '' };
+  ui.setup = { code: '', code2: '', err: '' };
+  render();
+  window.scrollTo(0, 0);
+  return true;
+}
+async function remoteStart() {
+  net.phase = 'loading';
+  render();
+  const t = tokenGet();
+  if (t) { net.token = t; if (await enter()) return; }
+  try {
+    const st = await rpc('sadran_status');
+    state.store = { name: (st && st.store) || '' };
+    net.phase = st && st.configured ? 'signin' : 'setup';
+  } catch (err) {
+    net.phase = 'down';
+  }
+  render();
 }
 
 /* ---------- staffing model ---------- */
@@ -1572,10 +1838,15 @@ function viewSetup() {
   return '<section class="pagehead"><div><h1 class="h1">הגדרות</h1><p class="sub">התפקידים, המשמרות והכללים שלפיהם נבנה הסידור.</p></div></section>' +
     '<section class="card stack"><h2 class="h2">החנות</h2><div class="field"><label class="label" for="storeInput">שם החנות או הסניף</label>' +
     '<input class="input" id="storeInput" data-bind="store.name" value="' + esc(state.store.name) + '" autocomplete="off"></div></section>' +
-    '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם הקוד הזה.</p></div>' +
-    '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת (4 עד 12 ספרות)</label>' +
-    '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft != null ? ui.codeDraft : state.managerCode) + '" inputmode="numeric" autocomplete="off"></div>' +
-    '<button type="submit" class="btn" id="btnCodeSave">שמירת הקוד</button></form>' +
+    (REMOTE
+      ? '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם קוד המנהל/ת. החלפת הקוד מנתקת מכשירים אחרים שנכנסו כמנהל/ת.</p></div>' +
+        '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת חדש (6 עד 12 ספרות)</label>' +
+        '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft || '') + '" inputmode="numeric" autocomplete="off"></div>' +
+        '<button type="submit" class="btn" id="btnCodeSave"' + (net.busy ? ' disabled' : '') + '>החלפת הקוד</button></form>'
+      : '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם הקוד הזה.</p></div>' +
+        '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת (4 עד 12 ספרות)</label>' +
+        '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft != null ? ui.codeDraft : state.managerCode) + '" inputmode="numeric" autocomplete="off"></div>' +
+        '<button type="submit" class="btn" id="btnCodeSave">שמירת הקוד</button></form>') +
     (ui.codeErr ? '<p class="err" role="alert">' + ui.codeErr + '</p>' : '') + '</section>' +
     '<section class="card stack"><div><h2 class="h2">תפקידים</h2><p class="sub">למשל קופאי/ת, אחראי/ת משמרת, או אחריות על משימה מסוימת. הקשה על הצבע מחליפה את הסימון.</p></div>' + roles +
     '<div><button type="button" class="btn" id="btnAddRole" data-act="roleAdd">' + icon('plus') + 'תפקיד</button></div></section>' +
@@ -1586,9 +1857,12 @@ function viewSetup() {
     '<div class="set-line"><div><strong>מנוחה מינימלית בין משמרות</strong><p class="sub">בשעות. החוק דורש 8 לפחות; ערך גבוה יותר מונע למשל בוקר מיד אחרי ערב, ו־0 מאפשר משמרת כפולה.</p></div>' +
     stepper('rest', state.rules.minRest, 'rest', '', 0, 16) + '</div>' +
     '<p class="sub">השיבוץ האוטומטי משבץ רק מי שהגיש/ה זמינות, מוגדר/ת לתפקיד ולא עבר/ה את מקסימום המשמרות. הוא נותן עדיפות למשמרות מועדפות ומשתדל לחלק את העומס באופן שווה. שיבוץ שנעשה ידנית ננעל ולא משתנה.</p></section>' +
-    '<section class="card stack"><h2 class="h2">על האב־טיפוס</h2>' +
-    '<p class="sub">הנתונים נשמרים בדפדפן של המכשיר הזה בלבד, והכניסה בשם ובמספר היא הדמיה שלא מגינה עליהם. כדי שכל עובד/ת יגיש/ה זמינות מהטלפון האישי והמנהל/ת יראה הכול במקום אחד, צריך לחבר את האתר למסד נתונים משותף.</p>' +
-    '<div>' + resetBtn() + '</div></section>';
+    (REMOTE
+      ? '<section class="card stack"><h2 class="h2">שמירת הנתונים</h2>' +
+        '<p class="sub">כל שינוי נשמר אוטומטית במסד הנתונים של החנות ומגיע לשאר המכשירים תוך כחצי דקה. עובדים רואים רק את הזמינות שלהם, את שמות הצוות ואת הסידורים שפורסמו.</p></section>'
+      : '<section class="card stack"><h2 class="h2">על האב־טיפוס</h2>' +
+        '<p class="sub">הנתונים נשמרים בדפדפן של המכשיר הזה בלבד, והכניסה בשם ובמספר היא הדמיה שלא מגינה עליהם. בגרסה שמחוברת למסד הנתונים כל עובד/ת מגיש/ה זמינות מהטלפון האישי והמנהל/ת רואה הכול במקום אחד.</p>' +
+        '<div>' + resetBtn() + '</div></section>');
 }
 
 /* ---------- sign-in ---------- */
@@ -1600,7 +1874,7 @@ function resetBtn() {
 function viewSignin() {
   const f = ui.signin, asEmp = f.tab === 'employee';
   const demoEmp = empById('e_shadi');
-  const demo = state.example && state.managerCode === DEMO_CODE;
+  const demo = !REMOTE && state.example && state.managerCode === DEMO_CODE;
   const fields = asEmp
     ? '<div class="field"><label class="label" for="siName">שם</label><input class="input" id="siName" data-bind="si.name" value="' + esc(f.name) + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
       '<div class="field"><label class="label" for="siNumber">מספר אישי</label><input class="input" id="siNumber" data-bind="si.number" value="' + esc(f.number) + '" inputmode="numeric" autocomplete="off"></div>'
@@ -1612,14 +1886,33 @@ function viewSignin() {
     '<button type="button" class="seg-b" id="segMgr" data-act="signTab" data-tab="manager" aria-pressed="' + !asEmp + '">מנהל/ת</button></div>' +
     '<form class="card form" id="signForm" data-form="signIn" novalidate>' + fields +
     (f.err ? '<p class="err" role="alert">' + f.err + '</p>' : '') +
-    '<button type="submit" class="btn btn-primary btn-block" id="btnSignIn">כניסה</button></form>' +
+    '<button type="submit" class="btn btn-primary btn-block" id="btnSignIn"' + (net.busy ? ' disabled' : '') + '>' + (net.busy ? 'נכנס…' : 'כניסה') + '</button></form>' +
     (demo ? '<div class="demo"><strong>נתוני דוגמה לכניסה</strong><span>מנהל/ת: קוד ' + ltr(DEMO_CODE) +
       (demoEmp && demoEmp.number === '1004' ? ' · עובד/ת: ' + esc(demoEmp.name) + ', מספר אישי ' + ltr('1004') : '') + '</span>' +
       '<div class="demo-row"><button type="button" class="btn" id="demoMgr" data-act="demoIn" data-role="manager">כניסה כמנהל/ת</button>' +
       (demoEmp ? '<button type="button" class="btn" id="demoEmp" data-act="demoIn" data-role="employee">כניסה בתור ' + esc(demoEmp.name) + '</button>' : '') + '</div></div>' : '') +
-    '<div class="signin-foot"><p class="sub">אב־טיפוס: הנתונים נשמרים במכשיר הזה בלבד.</p>' + resetBtn() + '</div>' +
+    (REMOTE
+      ? '<div class="signin-foot"><p class="sub">שכחת את המספר האישי? המנהל/ת רואה אותו בלשונית הצוות.</p></div>'
+      : '<div class="signin-foot"><p class="sub">אב־טיפוס: הנתונים נשמרים במכשיר הזה בלבד.</p>' + resetBtn() + '</div>') +
     '</section>';
 }
+// First visit to a new database: the manager chooses the manager code.
+function viewFirstRun() {
+  const f = ui.setup;
+  return '<section class="signin">' +
+    '<div class="signin-h"><h1 class="h1">הגדרה ראשונה</h1><p class="sub">בוחרים קוד מנהל/ת. איתו נכנסים לניהול הסידור, הצוות וההגדרות.</p></div>' +
+    '<form class="card form" id="setupForm" data-form="setupGo" novalidate>' +
+    '<div class="field"><label class="label" for="suCode">קוד מנהל/ת (6 עד 12 ספרות)</label><input class="input" id="suCode" type="password" data-bind="su.code" value="' + esc(f.code) + '" inputmode="numeric" autocomplete="new-password"></div>' +
+    '<div class="field"><label class="label" for="suCode2">שוב, לאישור</label><input class="input" id="suCode2" type="password" data-bind="su.code2" value="' + esc(f.code2) + '" inputmode="numeric" autocomplete="new-password"></div>' +
+    (f.err ? '<p class="err" role="alert">' + f.err + '</p>' : '') +
+    '<button type="submit" class="btn btn-primary btn-block" id="btnSetup"' + (net.busy ? ' disabled' : '') + '>' + (net.busy ? 'שומר…' : 'שמירה וכניסה') + '</button></form>' +
+    '<p class="sub">כדאי לבחור קוד שקשה לנחש, ולא לשתף אותו עם העובדים. אפשר להחליף אותו אחר כך בהגדרות.</p>' +
+    '</section>';
+}
+const viewLoading = () => '<section class="gate" aria-busy="true"><p>טוען…</p></section>';
+const viewDown = () => '<section class="signin"><div class="card empty"><h1 class="h2">אין חיבור לשרת</h1>' +
+  '<p class="sub">לא הצלחתי להגיע למסד הנתונים. כדאי לבדוק את החיבור לאינטרנט ולנסות שוב.</p>' +
+  '<button type="button" class="btn btn-primary" id="btnRetry" data-act="retryBoot">ניסיון חוזר</button></div></section>';
 
 /* ---------- employee views ---------- */
 function viewMyAvail() {
@@ -1798,7 +2091,7 @@ const SHEETS = {
         state.roles.map(r => '<button type="button" class="pickbtn" id="er-' + r.id + '" aria-pressed="' + d.roles.includes(r.id) + '" data-act="empRole" data-id="' + r.id + '">' + icon('check') + roleChip(r.id) + '</button>').join('') + '</div></div>' +
         '<div class="field field-row"><span class="label">מקסימום משמרות בשבוע</span>' + stepper('emax', d.max, 'empMax', '', 1, 7) + '</div>' +
         (s.err ? '<p class="err" role="alert">' + s.err + '</p>' : ''),
-      foot: '<button type="button" class="btn btn-primary" id="btnEmpSave" data-act="empSave">שמירה</button>' +
+      foot: '<button type="button" class="btn btn-primary" id="btnEmpSave" data-act="empSave"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? 'שומר…' : 'שמירה') + '</button>' +
         (d.id ? confirmBtn('emp-' + d.id, 'מחיקה', 'empDel', '', 'btn btn-danger') : '<button type="button" class="btn" data-act="close">ביטול</button>'),
     };
   },
@@ -1827,8 +2120,9 @@ const SHEETS = {
         (unknown.length ? '<p class="banner banner-warn">' + icon('alert') + '<span>תפקידים שלא קיימים בהגדרות ולכן דולגו: ' + unknown.map(esc).join(', ') + '.</span></p>' : '') +
         '<div class="cands">' + rows + '</div>' +
         (gone.length ? '<label class="check" for="impRemove"><input type="checkbox" id="impRemove" data-bind="imp.remove"' + (s.remove ? ' checked' : '') + '>' +
-          '<span>להסיר מהצוות ' + many(gone.length, 'עובד/ת אחד/ת שלא מופיע/ה', 'עובדים שלא מופיעים') + ' בקובץ: ' + gone.map(e => esc(e.name)).join(', ') + '</span></label>' : ''),
-      foot: '<button type="button" class="btn btn-primary" id="btnImportGo" data-act="importGo"' + (todo ? '' : ' disabled') + '>' + (todo ? 'ייבוא לצוות' : 'אין מה לעדכן') + '</button>' +
+          '<span>להסיר מהצוות ' + many(gone.length, 'עובד/ת אחד/ת שלא מופיע/ה', 'עובדים שלא מופיעים') + ' בקובץ: ' + gone.map(e => esc(e.name)).join(', ') + '</span></label>' : '') +
+        (s.err ? '<p class="err" role="alert">' + s.err + '</p>' : ''),
+      foot: '<button type="button" class="btn btn-primary" id="btnImportGo" data-act="importGo"' + (todo && !s.busy ? '' : ' disabled') + '>' + (s.busy ? 'מייבא…' : todo ? 'ייבוא לצוות' : 'אין מה לעדכן') + '</button>' +
         '<button type="button" class="btn" data-act="close">ביטול</button>',
     };
   },
@@ -1999,21 +2293,25 @@ function renderSheet(opening) {
 function render() {
   const active = document.activeElement && document.activeElement.id;
   let s = state.prefs.session;
-  if (s && s.role === 'employee' && !empById(s.id)) s = state.prefs.session = null;
+  if (s && s.role === 'employee' && !empById(s.id)) {
+    if (REMOTE && net.phase === 'ready') { endSession('removed'); return; }
+    s = state.prefs.session = null;
+  }
+  const gate = REMOTE ? (net.phase === 'ready' ? null : net.phase) : (s ? null : 'signin');
   const main = $('#view');
   $('#storeName').textContent = state.store.name;
-  $('#tabsBottom').hidden = !s;
-  if (!s) {
+  $('#tabsBottom').hidden = !!gate;
+  if (gate) {
     ui.sheet = null;
     $('#sess').innerHTML = '';
     $('#tabsTop').innerHTML = '';
     $('#tabsBottom').innerHTML = '';
     main.className = 'main is-narrow';
-    main.innerHTML = viewSignin();
+    main.innerHTML = gate === 'setup' ? viewFirstRun() : gate === 'down' ? viewDown() : gate === 'loading' ? viewLoading() : viewSignin();
   } else {
     if (!VIEWS[ui.view] || VIEWS[ui.view].mode !== s.role) ui.view = s.role === 'manager' ? 'schedule' : 'my-availability';
     syncWeek(ui.week);
-    $('#sess').innerHTML = '<span class="sess-who"><span class="sess-n">' + (s.role === 'manager' ? 'מנהל/ת' : esc(empById(s.id).name)) + '</span>' +
+    $('#sess').innerHTML = (REMOTE ? '<span class="sync" id="syncState"></span>' : '') + '<span class="sess-who"><span class="sess-n">' + (s.role === 'manager' ? 'מנהל/ת' : esc(empById(s.id).name)) + '</span>' +
       (s.role === 'employee' ? '<span class="sess-r">עובד/ת</span>' : '') + '</span>' +
       '<button type="button" class="sess-out" id="btnOut" data-act="signOut">יציאה</button>';
     const tabs = tabsHtml();
@@ -2024,6 +2322,7 @@ function render() {
   }
   renderSheet(false);
   save();
+  paintSync();
   if (active) { const el = document.getElementById(active); if (el && el !== document.activeElement) el.focus({ preventScroll: true }); }
 }
 function openSheet(s, from) {
@@ -2077,8 +2376,29 @@ const actions = {
     const inp = $(ds.tab === 'manager' ? '#siCode' : '#siName');
     if (inp) inp.focus();
   },
-  signIn() {
+  async signIn() {
     const f = ui.signin;
+    if (REMOTE) {
+      if (net.busy) return;
+      const asMgr = f.tab === 'manager';
+      f.err = asMgr ? (normNum(f.code) ? '' : 'צריך למלא את הקוד.') : (normName(f.name) && normNum(f.number) ? '' : 'צריך למלא שם ומספר אישי.');
+      if (f.err) { render(); return; }
+      net.busy = true;
+      render();
+      let out = null;
+      try {
+        out = asMgr ? await rpc('sadran_login_manager', { p_code: f.code }) : await rpc('sadran_login_employee', { p_name: f.name, p_number: f.number });
+      } catch (err) { f.err = NET_ERR; }
+      net.busy = false;
+      if (out && out.ok) { tokenSet(out.token); if (!(await enter())) remoteStart(); return; }
+      if (out) {
+        f.err = out.error === 'locked' ? 'היו יותר מדי ניסיונות שגויים. אפשר לנסות שוב בעוד 15 דקות.'
+          : out.error === 'not_configured' ? 'עדיין לא נקבע קוד מנהל/ת.'
+          : asMgr ? 'הקוד שגוי.' : 'השם והמספר לא תואמים לאף עובד/ת ברשימה. אפשר לבדוק אותם מול המנהל/ת.';
+      }
+      render();
+      return;
+    }
     if (f.tab === 'manager') {
       if (normNum(f.code) === state.managerCode) { startSession({ role: 'manager' }); return; }
       f.err = 'הקוד שגוי.';
@@ -2091,7 +2411,38 @@ const actions = {
     render();
   },
   demoIn(ds) { startSession(ds.role === 'manager' ? { role: 'manager' } : { role: 'employee', id: 'e_shadi' }); },
-  signOut() {
+  async setupGo() {
+    const f = ui.setup, c = normNum(f.code);
+    if (net.busy) return;
+    f.err = !/^\d{6,12}$/.test(c) ? 'הקוד צריך להיות 6 עד 12 ספרות.' : c !== normNum(f.code2) ? 'שני הקודים לא זהים.' : '';
+    if (f.err) { render(); return; }
+    net.busy = true;
+    render();
+    let out = null;
+    try { out = await rpc('sadran_setup', { p_code: c }); } catch (err) { f.err = NET_ERR; }
+    net.busy = false;
+    if (out && out.ok) {
+      tokenSet(out.token);
+      if (!(await enter())) { remoteStart(); return; }
+      toast('קוד המנהל/ת נשמר. עכשיו מוסיפים את הצוות בלשונית "צוות".');
+      return;
+    }
+    if (out && out.error === 'already_configured') {
+      net.phase = 'signin';
+      ui.signin.tab = 'manager';
+      ui.signin.err = 'כבר נקבע קוד מנהל/ת. נכנסים איתו כאן.';
+    } else if (out) f.err = 'הקוד צריך להיות 6 עד 12 ספרות.';
+    render();
+  },
+  retryBoot() { remoteStart(); },
+  async signOut() {
+    if (REMOTE) {
+      const t = net.token;
+      if (pending()) { flushAll(false); await waitIdle(4000); }
+      rpc('sadran_logout', { p_token: t }).catch(() => { /* the session expires on its own */ });
+      endSession();
+      return;
+    }
     state.prefs.session = null;
     ui.sheet = null;
     clearToast();
@@ -2099,7 +2450,30 @@ const actions = {
     render();
     window.scrollTo(0, 0);
   },
-  codeSave() {
+  async codeSave() {
+    if (REMOTE) {
+      if (net.busy) return;
+      const c = normNum(ui.codeDraft || '');
+      ui.codeErr = !/^\d{6,12}$/.test(c) ? 'הקוד צריך להיות 6 עד 12 ספרות.'
+        : state.employees.some(e => e.number === c) ? 'הקוד הזה כבר משמש כמספר אישי של עובד/ת.' : '';
+      if (ui.codeErr) { render(); return; }
+      net.busy = true;
+      render();
+      let out = null;
+      try { out = await rpc('sadran_set_code', { p_token: net.token, p_code: c }); }
+      catch (err) { net.busy = false; if (err.code === 'auth') { endSession('expired'); return; } ui.codeErr = NET_ERR; }
+      net.busy = false;
+      if (out && out.ok) {
+        ui.codeDraft = null;
+        ui.codeErr = '';
+        render();
+        toast('קוד המנהל/ת הוחלף. מכשירים אחרים שנכנסו כמנהל/ת יצטרכו להיכנס שוב.');
+        return;
+      }
+      if (out) ui.codeErr = out.error === 'code_is_number' ? 'הקוד הזה כבר משמש כמספר אישי של עובד/ת.' : 'הקוד צריך להיות 6 עד 12 ספרות.';
+      render();
+      return;
+    }
     const code = normNum(ui.codeDraft != null ? ui.codeDraft : state.managerCode);
     ui.codeErr = !/^\d{4,12}$/.test(code) ? 'הקוד צריך להיות 4 עד 12 ספרות.'
       : state.employees.some(e => e.number === code) ? 'הקוד הזה כבר משמש כמספר אישי של עובד/ת.' : '';
@@ -2110,37 +2484,60 @@ const actions = {
     toast('קוד המנהל/ת עודכן.');
   },
   importPick() { const inp = $('#xlsxFile'); inp.value = ''; inp.click(); },
-  importGo() {
+  async importGo() {
     const s = ui.sheet, plan = importPlan(s.rows);
+    if (s.busy) return;
     const ordered = ids => state.roles.map(r => r.id).filter(id => ids.includes(id));
-    const taken = new Set();
-    let added = 0, updated = 0, removed = 0;
+    const taken = new Set(), ups = [], dels = [];
+    let added = 0, updated = 0;
     for (const p of plan) {
       if (p.kind === 'err') continue;
       if (p.emp) {
         taken.add(p.emp.id);
         if (p.kind === 'same') continue;
-        p.emp.name = p.name; p.emp.number = p.number;
-        if (p.roles) p.emp.roles = ordered(p.roles);
-        if (p.max) p.emp.max = p.max;
+        ups.push({ id: p.emp.id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : p.emp.roles, max: p.max || p.emp.max });
         updated++;
       } else {
         const id = uid('e_');
-        state.employees.push({ id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : [], max: p.max || 5 });
+        ups.push({ id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : [], max: p.max || 5 });
         taken.add(id);
         added++;
       }
     }
-    if (s.remove) {
-      const gone = state.employees.filter(e => !taken.has(e.id));
-      removed = gone.length;
-      state.employees = state.employees.filter(e => taken.has(e.id));
-      for (const wk in state.avail) for (const g of gone) delete state.avail[wk][g.id];
+    if (s.remove) state.employees.forEach(e => { if (!taken.has(e.id)) dels.push(e.id); });
+    const summary = [added && 'נוספו ' + added, updated && 'עודכנו ' + updated, dels.length && 'הוסרו ' + dels.length].filter(Boolean).join(', ') + '.';
+    if (REMOTE) {
+      s.busy = true;
+      s.err = '';
+      render();
+      let out = null;
+      try { out = await rpc('sadran_import_employees', { p_token: net.token, p_upserts: ups, p_deletes: dels }); }
+      catch (err) { s.busy = false; if (err.code === 'auth') { endSession('expired'); return; } s.err = NET_ERR; }
+      s.busy = false;
+      if (out && out.ok) {
+        if (ui.sheet === s) ui.sheet = null;
+        await refresh(true);
+        render();
+        toast(summary);
+        return;
+      }
+      if (out) {
+        s.err = out.error === 'number_is_code' ? 'המספר האישי של ' + esc(out.name || '') + ' זהה לקוד המנהל/ת. צריך לבחור מספר אחר ולייבא שוב.'
+          : out.error === 'number_taken' ? 'אותו מספר אישי שייך לשני עובדים. צריך לתקן בקובץ ולייבא שוב.'
+          : 'שורה בקובץ לא תקינה' + (out.name ? ': ' + esc(out.name) : '') + '.';
+      }
+      if (ui.sheet === s) render();
+      return;
+    }
+    for (const u of ups) { const e = empById(u.id); if (e) Object.assign(e, u); else state.employees.push(u); }
+    if (dels.length) {
+      state.employees = state.employees.filter(e => !dels.includes(e.id));
+      for (const wk in state.avail) for (const id of dels) delete state.avail[wk][id];
     }
     state.example = false;
     ui.sheet = null;
     render();
-    toast([added && 'נוספו ' + added, updated && 'עודכנו ' + updated, removed && 'הוסרו ' + removed].filter(Boolean).join(', ') + '.');
+    toast(summary);
   },
   exportXlsx() {
     toast('מכין את הקובץ…');
@@ -2199,6 +2596,7 @@ const actions = {
     w.published = { at: Date.now(), slots: clone(w.slots) };
     ui.sheet = null;
     render();
+    if (REMOTE) flushKey('w:' + ui.week);
     toast('הסידור פורסם. העובדים רואים אותו בלשונית "המשמרות שלי".');
   },
   unpublish() { state.weeks[ui.week].published = null; ui.sheet = null; render(); toast('הפרסום בוטל.'); },
@@ -2262,8 +2660,10 @@ const actions = {
   },
   avSubmit(ds) {
     availRec(ui.week, ds.emp, true).submittedAt = Date.now();
+    const done = ui.sheet ? 'הזמינות הוגשה.' : 'הזמינות נשלחה למנהל/ת.';
     render();
-    toast(ui.sheet ? 'הזמינות הוגשה.' : 'הזמינות נשלחה למנהל/ת.');
+    if (!REMOTE) { toast(done); return; }
+    flushKey('a:' + ui.week + '|' + ds.emp).then(ok => toast(ok ? done : 'אין חיבור כרגע. הזמינות תישלח כשהחיבור יחזור.'));
   },
   editAvail(ds, el) { openSheet({ type: 'avail', emp: ds.emp }, el.id); },
 
@@ -2274,7 +2674,7 @@ const actions = {
   },
   empRole(ds) { const r = ui.sheet.draft.roles, i = r.indexOf(ds.id); if (i < 0) r.push(ds.id); else r.splice(i, 1); render(); },
   empMax(ds) { const d = ui.sheet.draft; d.max = Math.min(7, Math.max(1, d.max + +ds.d)); render(); },
-  empSave() {
+  async empSave() {
     const s = ui.sheet, d = s.draft, name = d.name.trim().replace(/\s+/g, ' '), number = normNum(d.number);
     const clash = state.employees.find(e => e.number === number && e.id !== d.id);
     s.err = !name ? 'צריך למלא שם.'
@@ -2285,14 +2685,41 @@ const actions = {
       : !d.roles.length ? 'צריך לבחור לפחות תפקיד אחד.' : '';
     if (s.err) { render(); return; }
     const roles = state.roles.map(r => r.id).filter(id => d.roles.includes(id));
-    if (d.id) Object.assign(empById(d.id), { name, number, roles, max: d.max });
-    else state.employees.push({ id: uid('e_'), name, number, roles, max: d.max });
+    const rec = { id: d.id || uid('e_'), name, number, roles, max: d.max };
+    if (REMOTE) {
+      if (s.busy) return;
+      s.busy = true;
+      render();
+      let out = null;
+      try { out = await rpc('sadran_save_employee', { p_token: net.token, p_employee: rec }); }
+      catch (err) { s.busy = false; if (err.code === 'auth') { endSession('expired'); return; } s.err = NET_ERR; }
+      s.busy = false;
+      if (!out || !out.ok) {
+        if (out) {
+          s.err = out.error === 'number_taken' ? 'המספר הזה כבר שייך ל' + esc(out.name || 'עובד/ת אחר/ת') + '.'
+            : out.error === 'number_is_code' ? 'המספר הזה שמור לקוד המנהל/ת.'
+            : out.error === 'name' ? 'צריך למלא שם.' : 'המספר האישי צריך להיות 3 עד 12 ספרות.';
+        }
+        if (ui.sheet === s) render();
+        return;
+      }
+      net.base.emps[rec.id] = canon(empOf(rec));
+    }
+    if (d.id) Object.assign(empById(d.id), rec);
+    else state.employees.push(rec);
     ui.sheet = null;
     render();
     toast(d.id ? 'הפרטים נשמרו.' : esc(name) + ' נוסף/ה לצוות. מספר אישי: ' + ltr(number));
   },
-  empDel() {
-    const id = ui.sheet.draft.id;
+  async empDel() {
+    const s = ui.sheet, id = s.draft.id;
+    if (REMOTE) {
+      if (s.busy) return;
+      s.busy = true;
+      try { await rpc('sadran_delete_employee', { p_token: net.token, p_id: id }); }
+      catch (err) { s.busy = false; if (err.code === 'auth') { endSession('expired'); return; } s.err = NET_ERR; if (ui.sheet === s) render(); return; }
+      delete net.base.emps[id];
+    }
     state.employees = state.employees.filter(e => e.id !== id);
     for (const wk in state.avail) delete state.avail[wk][id];
     ui.sheet = null;
@@ -2375,6 +2802,7 @@ document.addEventListener('input', e => {
   const v = t.value, id = t.dataset.id;
   const paint = (attr, text) => document.querySelectorAll('[' + attr + '="' + id + '"]').forEach(n => { n.textContent = text; });
   if (b.slice(0, 3) === 'si.') { ui.signin[b.slice(3)] = v; return; }
+  if (b.slice(0, 3) === 'su.') { ui.setup[b.slice(3)] = v; return; }
   if (b === 'code.draft') { ui.codeDraft = v; return; }
   if (b === 'draft.name' || b === 'draft.number') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft[b.slice(6)] = v; return; }
   if (b === 'store.name') { state.store.name = v; $('#storeName').textContent = v; }
@@ -2400,10 +2828,18 @@ window.addEventListener('hashchange', () => {
 });
 
 /* ---------- boot ---------- */
-const h = location.hash.slice(1), sess = state.prefs.session;
-ui.view = sess && VIEWS[h] && VIEWS[h].mode === sess.role ? h : (sess && sess.role === 'employee' ? 'my-availability' : 'schedule');
-if (firstRun) autoSchedule(ui.week, false);   // the example opens on a proposed roster rather than an empty sheet
-render();
+if (REMOTE) {
+  setInterval(() => { if (document.visibilityState === 'visible') refresh(false); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(false); else flushAll(true); });
+  window.addEventListener('pagehide', () => flushAll(true));
+  window.addEventListener('online', () => { if (net.failures) { net.failures = 0; queueChanges(); } });
+  remoteStart();
+} else {
+  const h = location.hash.slice(1), sess = state.prefs.session;
+  ui.view = sess && VIEWS[h] && VIEWS[h].mode === sess.role ? h : (sess && sess.role === 'employee' ? 'my-availability' : 'schedule');
+  if (firstRun) autoSchedule(ui.week, false);   // the example opens on a proposed roster rather than an empty sheet
+  render();
+}
 })();
 </script>
 
