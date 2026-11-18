@@ -54,6 +54,10 @@ insert into sadran.settings (id, config) values (1, $json$
 $json$::jsonb)
 on conflict (id) do nothing;
 
+-- The store logo, kept apart from the settings so it is downloaded only when it changes.
+alter table sadran.settings add column if not exists logo text;
+alter table sadran.settings add column if not exists logo_updated_at timestamptz;
+
 create table if not exists sadran.employees (
   id text primary key check (id ~ '^e_[a-z0-9_]{1,40}$'),
   name text not null check (length(btrim(name)) between 1 and 80),
@@ -103,6 +107,28 @@ create table if not exists sadran.login_failures (
 );
 create index if not exists login_failures_key_at on sadran.login_failures (key, at);
 
+-- Browsers that agreed to receive reminders. Only the big push services are accepted, so the
+-- reminder function never posts to an address someone made up.
+create table if not exists sadran.push_subscriptions (
+  endpoint text primary key,
+  role text not null check (role in ('manager', 'employee')),
+  employee_id text references sadran.employees (id) on delete cascade,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check ((role = 'employee') = (employee_id is not null))
+);
+
+-- Which deadline reminders went out, so each person gets one per week.
+create table if not exists sadran.reminders (
+  week date not null,
+  kind text not null,      -- 'deadline' for an employee, 'summary' for the manager
+  target text not null,    -- employee id, or 'manager'
+  sent_at timestamptz not null default now(),
+  primary key (week, kind, target)
+);
+
 -- Defence in depth: should the schema ever be exposed, nothing is readable.
 alter table sadran.settings enable row level security;
 alter table sadran.employees enable row level security;
@@ -110,6 +136,8 @@ alter table sadran.availability enable row level security;
 alter table sadran.weeks enable row level security;
 alter table sadran.sessions enable row level security;
 alter table sadran.login_failures enable row level security;
+alter table sadran.push_subscriptions enable row level security;
+alter table sadran.reminders enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Internal helpers (not callable from the website)
@@ -185,6 +213,112 @@ language sql stable set search_path = '' as $$
                      from sadran.settings where id = 1), false)
 $$;
 
+-- "22–28.11", isolated so it keeps its order inside Hebrew text.
+create or replace function sadran.week_label(w date) returns text
+language sql stable set search_path = '' as $$
+  select chr(8294) || case when extract(month from w) = extract(month from w + 6)
+                           then to_char(w, 'FMDD') || '–' || to_char(w + 6, 'FMDD.FMMM')
+                           else to_char(w, 'FMDD.FMMM') || '–' || to_char(w + 6, 'FMDD.FMMM') end || chr(8297)
+$$;
+
+-- Employees with no submitted availability for a week.
+create or replace function sadran.pending(p_week date) returns setof sadran.employees
+language sql stable set search_path = '' as $$
+  select e.* from sadran.employees e
+   where not exists (select 1 from sadran.availability a
+                      where a.week = p_week and a.employee_id = e.id and a.submitted_at is not null)
+   order by e.name
+$$;
+
+-- Called by the sadran-remind function every few minutes. When the deadline for next week has
+-- passed, returns one message per device of each employee who has not submitted, plus a summary
+-- for the manager's devices. Each reminder is recorded as it is returned, so it goes out once.
+create or replace function sadran.reminders_due() returns jsonb
+language plpgsql volatile set search_path = '' as $$
+declare
+  cfg jsonb;
+  dl jsonb;
+  store text;
+  loc timestamp;
+  wk date;
+  due timestamp;
+  msgs jsonb := '[]'::jsonb;
+  names text[];
+  n int;
+begin
+  select config into cfg from sadran.settings where id = 1;
+  dl := cfg -> 'rules' -> 'deadline';
+  if dl is null or coalesce((dl ->> 'on')::boolean, false) is false then
+    return msgs;
+  end if;
+  store := coalesce(nullif(cfg -> 'store' ->> 'name', ''), 'סדרן');
+  loc := now() at time zone coalesce(nullif(dl ->> 'tz', ''), 'Asia/Jerusalem');
+  wk := loc::date + (7 - extract(dow from loc)::int);   -- next Sunday
+  due := (wk - 7 + coalesce((dl ->> 'day')::int, 4))::timestamp + coalesce(nullif(dl ->> 'time', ''), '18:00')::time;
+  if loc < due then
+    return msgs;
+  end if;
+
+  with claimed as (
+    insert into sadran.reminders (week, kind, target)
+    select wk, 'deadline', e.id from sadran.pending(wk) e
+     where exists (select 1 from sadran.push_subscriptions p where p.employee_id = e.id)
+    on conflict do nothing
+    returning target
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth, 'title', store,
+           'body', 'עוד לא הגשת זמינות לשבוע ' || sadran.week_label(wk) || ', והמועד להגשה עבר. אפשר להגיש עכשיו.',
+           'url', './#my-availability', 'tag', 'deadline-' || wk)), '[]'::jsonb)
+    into msgs
+    from claimed c join sadran.push_subscriptions p on p.employee_id = c.target;
+
+  select array_agg(e.name), count(*) into names, n from sadran.pending(wk) e;
+  if n > 0 and exists (select 1 from sadran.push_subscriptions where role = 'manager') then
+    insert into sadran.reminders (week, kind, target) values (wk, 'summary', 'manager') on conflict do nothing;
+    if found then
+      msgs := msgs || coalesce((
+        select jsonb_agg(jsonb_build_object(
+                 'endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth, 'title', store,
+                 'body', case when n = 1 then 'עובד/ת אחד/ת עוד לא הגיש/ה זמינות לשבוע '
+                              else n || ' עובדים עוד לא הגישו זמינות לשבוע ' end
+                         || sadran.week_label(wk) || ': ' || array_to_string(names[1:5], ', ')
+                         || case when n > 5 then ' ועוד ' || (n - 5) else '' end || '.',
+                 'url', './#availability', 'tag', 'summary-' || wk))
+          from sadran.push_subscriptions p where p.role = 'manager'), '[]'::jsonb);
+    end if;
+  end if;
+  return msgs;
+end $$;
+
+-- The manager's "send a reminder now": messages for everyone who has not submitted for a week,
+-- with who can and cannot be reached.
+create or replace function sadran.reminders_manual(p_token text, p_week date) returns jsonb
+language plpgsql volatile set search_path = '' as $$
+declare
+  store text;
+begin
+  perform sadran.auth(p_token, 'manager');
+  select coalesce(nullif(config -> 'store' ->> 'name', ''), 'סדרן') into store from sadran.settings where id = 1;
+  return jsonb_build_object(
+    'pending', (select count(*) from sadran.pending(p_week)),
+    'reached', (select coalesce(jsonb_agg(e.name), '[]'::jsonb) from sadran.pending(p_week) e
+                 where exists (select 1 from sadran.push_subscriptions p where p.employee_id = e.id)),
+    'unreachable', (select coalesce(jsonb_agg(e.name), '[]'::jsonb) from sadran.pending(p_week) e
+                     where not exists (select 1 from sadran.push_subscriptions p where p.employee_id = e.id)),
+    'messages', (select coalesce(jsonb_agg(jsonb_build_object(
+                   'endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth, 'title', store,
+                   'body', 'תזכורת: עוד לא הגשת זמינות לשבוע ' || sadran.week_label(p_week) || '. אפשר להגיש עכשיו.',
+                   'url', './#my-availability', 'tag', 'manual-' || p_week)), '[]'::jsonb)
+                   from sadran.pending(p_week) e join sadran.push_subscriptions p on p.employee_id = e.id));
+end $$;
+
+-- A push service said this subscription no longer exists.
+create or replace function sadran.push_drop(p_endpoint text) returns void
+language sql volatile set search_path = '' as $$
+  delete from sadran.push_subscriptions where endpoint = p_endpoint;
+$$;
+
 revoke all on all functions in schema sadran from public;
 
 -- ---------------------------------------------------------------------------
@@ -195,7 +329,16 @@ revoke all on all functions in schema sadran from public;
 create or replace function public.sadran_status() returns jsonb
 language sql stable security definer set search_path = '' as $$
   select jsonb_build_object('configured', manager_code_hash is not null,
-                            'store', config -> 'store' ->> 'name')
+                            'store', config -> 'store' ->> 'name',
+                            'theme', config -> 'theme',
+                            'logoVer', sadran.ms(logo_updated_at))
+    from sadran.settings where id = 1
+$$;
+
+-- The store logo is public: it is shown on the sign-in screen.
+create or replace function public.sadran_logo() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object('logo', logo, 'logoVer', sadran.ms(logo_updated_at))
     from sadran.settings where id = 1
 $$;
 
@@ -297,7 +440,8 @@ begin
     into wk from sadran.weeks w
    where w.week >= since and (mgr or w.published is not null);
   return jsonb_build_object('role', s.role, 'me', s.employee_id, 'config', cfg,
-                            'employees', emps, 'avail', av, 'weeks', wk);
+                            'employees', emps, 'avail', av, 'weeks', wk,
+                            'logoVer', (select sadran.ms(logo_updated_at) from sadran.settings where id = 1));
 end $$;
 
 create or replace function public.sadran_save_config(p_token text, p_config jsonb) returns void
@@ -449,7 +593,54 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
--- Only the functions above are callable from the website.
+-- A PNG, JPEG or WebP data URL, already resized by the page; null removes the logo.
+create or replace function public.sadran_save_logo(p_token text, p_logo text) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  ver timestamptz := case when p_logo is null then null else now() end;
+begin
+  perform sadran.auth(p_token, 'manager');
+  if p_logo is not null and (length(p_logo) > 300000
+     or p_logo !~ '^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$') then
+    return jsonb_build_object('ok', false, 'error', 'bad_image');
+  end if;
+  update sadran.settings set logo = p_logo, logo_updated_at = ver, updated_at = now() where id = 1;
+  return jsonb_build_object('ok', true, 'logoVer', sadran.ms(ver));
+end $$;
+
+-- Remember this browser for reminders, for the signed-in employee or the manager.
+create or replace function public.sadran_push_subscribe(p_token text, p_endpoint text, p_p256dh text, p_auth text) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  s sadran.sessions;
+begin
+  s := sadran.auth(p_token);
+  if coalesce(p_endpoint, '') !~ '^https://(fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.push\.apple\.com|[a-z0-9.-]+\.notify\.windows\.com)/'
+     or length(p_endpoint) > 1000
+     or coalesce(p_p256dh, '') !~ '^[A-Za-z0-9_-]{80,100}={0,2}$'
+     or coalesce(p_auth, '') !~ '^[A-Za-z0-9_-]{16,32}={0,2}$' then
+    return jsonb_build_object('ok', false, 'error', 'bad_subscription');
+  end if;
+  insert into sadran.push_subscriptions (endpoint, role, employee_id, p256dh, auth)
+  values (p_endpoint, s.role, s.employee_id, p_p256dh, p_auth)
+  on conflict (endpoint) do update
+     set role = excluded.role, employee_id = excluded.employee_id,
+         p256dh = excluded.p256dh, auth = excluded.auth, updated_at = now();
+  return jsonb_build_object('ok', true);
+end $$;
+
+create or replace function public.sadran_push_unsubscribe(p_token text, p_endpoint text) returns void
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  s sadran.sessions;
+begin
+  s := sadran.auth(p_token);
+  delete from sadran.push_subscriptions
+   where endpoint = p_endpoint and (s.role = 'manager' or employee_id = s.employee_id);
+end $$;
+
+-- Only the functions above are callable from the website. The sadran.* helpers, including the
+-- reminder functions the sadran-remind function calls, are reachable only from inside the database.
 do $$
 declare
   f text;

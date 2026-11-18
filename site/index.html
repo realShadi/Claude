@@ -372,6 +372,12 @@ button:disabled { cursor: default; opacity: .4; }
 .hl-4 { --hl: var(--hl-4); }
 .hl-5 { --hl: var(--hl-5); }
 .hl-6 { --hl: var(--hl-6); }
+.hl-7 { --hl: var(--hl-7); }
+.hl-8 { --hl: var(--hl-8); }
+.hl-9 { --hl: var(--hl-9); }
+.hl-10 { --hl: var(--hl-10); }
+.hl-11 { --hl: var(--hl-11); }
+.hl-12 { --hl: var(--hl-12); }
 @keyframes swipe { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
 .is-fresh .role { animation: swipe .5s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 14ms); }
 
@@ -950,6 +956,133 @@ button.cand:hover:not(:disabled) { background: var(--surface-2); }
 .toast-b .ic { width: 15px; height: 15px; }
 @media (min-width: 900px) { .toast-root { bottom: 28px; } }
 
+/* ---------- branding, themes, export, hours, notifications ---------- */
+.brand { align-items: center; }
+.brand-logo { height: 32px; width: auto; max-width: 104px; object-fit: contain; flex: none; }
+.bar-btn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+.bar-btn .ic { width: 18px; height: 18px; }
+.signin-logo { max-height: 72px; max-width: 220px; width: auto; height: auto; object-fit: contain; justify-self: start; }
+.logo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.logo-box {
+  width: 104px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line-2);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: .75rem;
+  overflow: hidden;
+}
+.logo-box img { max-width: 92px; max-height: 54px; object-fit: contain; }
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.tsw {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink-2);
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tsw[aria-pressed="true"], .tsw.is-on { border-color: var(--ink); color: var(--ink); }
+.tsw-dot { width: 36px; height: 36px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 3px var(--surface), 0 0 0 1px var(--line-2); }
+.tsw-custom .tsw-dot { background: conic-gradient(#E5484D, #F5A524, #46A758, #0091FF, #8E4EC6, #E5484D); }
+.tsw-custom.is-set .tsw-dot { background: var(--c); }
+.tsw input[type="color"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.tsw:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.palette { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.pal {
+  aspect-ratio: 1;
+  max-width: 100%;
+  display: grid;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: var(--hl);
+  color: var(--ink);
+}
+.pal[aria-pressed="true"] { border-color: var(--ink); }
+.pal .ic { width: 18px; height: 18px; }
+.xopts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.xopt {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1.5px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: .875rem;
+  font-weight: 600;
+  text-align: start;
+}
+.xopt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.xopt-sw { display: flex; height: 22px; overflow: hidden; border-radius: 6px; border: 1px solid var(--line); }
+.xopt-sw i { flex: 1; }
+.xprev {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+div.xprev { display: grid; place-items: center; color: var(--ink-3); }
+.push-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.push-row > .sub { flex: 1 1 220px; min-width: 0; }
+.push-st { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); color: var(--ink-3); }
+.push-st .ic { width: 18px; height: 18px; }
+.push-st.is-on { background: var(--ok-soft); color: var(--ok); }
+.push-st.is-denied { background: var(--bad-soft); color: var(--bad); }
+.av-wrap { position: relative; display: flex; min-width: 0; }
+.av-wrap .av-cell { flex: 1; min-width: 0; flex-direction: column; gap: 1px; padding-block: 6px; padding-inline: 4px 30px; line-height: 1.2; }
+.av-l { display: inline-flex; align-items: center; gap: 5px; }
+.av-h { font-size: .6875rem; font-weight: 700; direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+.av-cell.is-part[data-v="1"] { background: repeating-linear-gradient(-45deg, var(--ok-soft) 0 7px, var(--surface) 7px 10px); }
+.av-cell.is-part[data-v="2"] { background: repeating-linear-gradient(-45deg, var(--ok) 0 7px, color-mix(in srgb, var(--ok) 78%, var(--surface)) 7px 10px); }
+.av-time {
+  position: absolute;
+  inset-inline-end: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-3);
+}
+.av-wrap[data-v="1"] .av-time { color: var(--ok); }
+.av-wrap[data-v="2"] .av-time { color: var(--surface); }
+.av-time .ic { width: 16px; height: 16px; }
+.trow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 6px 8px; }
+.trow-l { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; font-size: .8125rem; font-weight: 700; color: var(--ink-2); }
+.trow-l .btn { min-height: 32px; padding: 0 10px; font-size: .8125rem; }
+.trow .input { min-width: 0; padding: 0 8px; }
+.c.cp { background: linear-gradient(135deg, var(--ok) 0 50%, var(--ok-soft) 50% 100%); border-color: var(--ok); border-style: dashed; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
@@ -959,11 +1092,13 @@ button.cand:hover:not(:disabled) { background: var(--surface-2); }
   <header class="bar">
     <div class="bar-in">
       <div class="brand">
-        <span class="brand-mark">סדרן</span>
+        <img class="brand-logo" id="brandLogo" alt="" hidden>
+        <span class="brand-mark" id="brandMark">סדרן</span>
         <span class="brand-store" id="storeName"></span>
       </div>
       <nav class="tabs-top" id="tabsTop" aria-label="ניווט ראשי"></nav>
       <div class="sess" id="sess"></div>
+      <button type="button" class="bar-btn" id="appearBtn" data-act="appearance" hidden></button>
     </div>
   </header>
   <main class="main" id="view"></main>
@@ -971,6 +1106,7 @@ button.cand:hover:not(:disabled) { background: var(--surface-2); }
   <div id="sheetRoot"></div>
   <div class="toast-root" id="toastRoot" aria-live="polite"></div>
   <input type="file" id="xlsxFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="קובץ אקסל של עובדים" hidden>
+  <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" aria-label="קובץ הלוגו של החנות" hidden>
 </div>
 
 <script>
@@ -983,7 +1119,6 @@ rootEl.dir = 'rtl';
 const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const DAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const STORE_KEY = 'sadran.v1';
-const COLORS = 6;
 const DEMO_CODE = '2468';
 const EXCEL_SRC = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -993,6 +1128,13 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const BACKEND = { url: 'https://xdjeijflnutqoxzzodqh.supabase.co', key: 'sb_publishable_3hoq5cJtZL-UnY7WrO6kuw_I9OnWsAT' };
 const REMOTE = !!(BACKEND.url && BACKEND.key) && !(window.claude && typeof window.claude.use === 'function');
 const TOKEN_KEY = 'sadran.token';
+const LOGO_KEY = 'sadran.logo';
+const APPEAR_KEY = 'sadran.appearance';
+// Public half of the key the reminder function signs notifications with (the private half is a project secret).
+const VAPID_PUBLIC = 'BO1mbfBRHP_eNcndbge5CAk3rojb2AL73woQdBZ0QwAbhu5dKIxD56rvwurUhhcM5t1HGYyHTrgl6QRZRZJEsFs';
+const inViewer = !!(window.claude && typeof window.claude.use === 'function');
+const DEF_DEADLINE = () => ({ on: false, day: 4, time: '18:00', tz: '' });
+const tzNow = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } };
 
 /* ---------- helpers ---------- */
 const $ = (s, el) => (el || document).querySelector(s);
@@ -1046,8 +1188,103 @@ const ICONS = {
   trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.5h9.4L17.5 7M10 11v5M14 11v5"/>',
   up: '<path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5M5 19.5h14"/>',
   down: '<path d="M12 4v11.5M7.5 11 12 15.5 16.5 11M5 19.5h14"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  moon: '<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10z"/>',
+  auto: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  image: '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-4.5 3.5 3 3-2.5 4.5 4"/>',
+  bell: '<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  share: '<circle cx="17.5" cy="5.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><circle cx="17.5" cy="18.5" r="2.5"/><path d="m8.7 10.8 6.6-3.9M8.7 13.2l6.6 3.9"/>',
 };
 const icon = n => '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[n] + '</svg>';
+
+/* ---------- themes ----------
+   The manager picks a store theme (a preset or any colour); everything else is derived from it:
+   tinted neutrals and an accent that keeps its contrast in both light and dark. */
+const HL = [   // role highlight colours, [light, dark]
+  ['#FFE55C', '#5E5108'], ['#FFB6D3', '#6C2446'], ['#B7EDA3', '#24562B'], ['#A8DDFA', '#154A67'],
+  ['#FFCB8F', '#6C4412'], ['#D6C8FF', '#44367C'], ['#9EEBDD', '#145247'], ['#FFB3A7', '#6E2620'],
+  ['#DDF58A', '#48560F'], ['#BFC8FF', '#2C3878'], ['#E8D9B5', '#5A4A26'], ['#D5DBE3', '#3A4552'],
+];
+const HL_NAMES = ['צהוב', 'ורוד', 'ירוק', 'תכלת', 'כתום', 'סגול', 'טורקיז', 'אדום', 'ליים', 'כחול', 'חול', 'אפור'];
+const COLORS = HL.length;
+const PRESETS = [
+  { id: 'blue', name: 'כחול', accent: '#2343D0', dark: '#8AA5FF', hue: 214 },
+  { id: 'forest', name: 'יער', accent: '#17734A', dark: '#6CD49E', hue: 152 },
+  { id: 'wine', name: 'בורדו', accent: '#A11D45', dark: '#FF8FAE', hue: 346 },
+  { id: 'amber', name: 'ענבר', accent: '#B4410B', dark: '#FDB27A', hue: 28 },
+  { id: 'violet', name: 'סגול', accent: '#6A2BD1', dark: '#C6B3FF', hue: 262 },
+  { id: 'teal', name: 'טורקיז', accent: '#0B6F80', dark: '#5FD8EA', hue: 190 },
+  { id: 'graphite', name: 'גרפיט', accent: '#273142', dark: '#D9DFE8', hue: 218, mono: true },
+];
+const hexRgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const rgbHex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+const mix = (a, b, t) => { const A = hexRgb(a), B = hexRgb(b); return rgbHex(A.map((v, i) => v + (B[i] - v) * t)); };
+const luminance = h => hexRgb(h).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }).reduce((a, v, i) => a + v * [.2126, .7152, .0722][i], 0);
+const contrast = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+function hsl(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l), f = n => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+  return rgbHex([f(0) * 255, f(8) * 255, f(4) * 255]);
+}
+function hueSat(hex) {
+  const [r, g, b] = hexRgb(hex).map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
+  if (!d) return [0, 0];
+  const h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, d / (1 - Math.abs(2 * l - 1)) * 100];
+}
+function themeTokens(t) {
+  t = t || {};
+  let p = PRESETS.find(x => x.id === t.preset) || PRESETS[0];
+  if (t.preset === 'custom' && /^#[0-9a-f]{6}$/i.test(t.custom || '')) {
+    const [h, sat] = hueSat(t.custom), mono = sat < 12, ground = hsl(h, mono ? 8 : 28, 8);
+    let a = t.custom.toUpperCase(), d = mix(t.custom, '#FFFFFF', .3);
+    for (let i = 0; i < 30 && contrast(a, '#FFFFFF') < 4.6; i++) a = mix(a, '#000000', .1);
+    for (let i = 0; i < 30 && contrast(d, ground) < 6.5; i++) d = mix(d, '#FFFFFF', .12);
+    p = { accent: a, dark: d, hue: h, mono };
+  }
+  const k = p.mono ? .3 : 1, h = p.hue, dbg = hsl(h, 28 * k, 8);
+  const light = {
+    bg: hsl(h, 22 * k, 94), surface: '#FFFFFF', 'surface-2': hsl(h, 30 * k, 96.5),
+    ink: hsl(h, 37 * k, 12), 'ink-2': hsl(h, 18 * k, 33), 'ink-3': hsl(h, 13 * k, 44),
+    line: hsl(h, 20 * k, 88), 'line-2': hsl(h, 16 * k, 78),
+    accent: p.accent, 'accent-soft': mix(p.accent, '#FFFFFF', .87),
+    'accent-ink': contrast(p.accent, '#FFFFFF') >= 4.5 ? '#FFFFFF' : hsl(h, 37 * k, 12),
+  };
+  const dark = {
+    bg: dbg, surface: hsl(h, 26 * k, 13), 'surface-2': hsl(h, 24 * k, 16),
+    ink: hsl(h, 30 * k, 93), 'ink-2': hsl(h, 18 * k, 76), 'ink-3': hsl(h, 13 * k, 61),
+    line: hsl(h, 22 * k, 21), 'line-2': hsl(h, 18 * k, 30),
+    accent: p.dark, 'accent-soft': mix(p.dark, dbg, .78), 'accent-ink': mix(p.dark, '#000000', .85),
+  };
+  HL.forEach((c, i) => { light['hl-' + (i + 1)] = c[0]; dark['hl-' + (i + 1)] = c[1]; });
+  return { light, dark };
+}
+let themeCss = '';
+function applyTheme() {
+  const tk = themeTokens(state.theme), v = o => Object.keys(o).map(k => '--' + k + ':' + o[k]).join(';');
+  const css = ':root{' + v(tk.light) + '}@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){' + v(tk.dark) + ';color-scheme:dark}}' +
+    ':root[data-theme="dark"]{' + v(tk.dark) + ';color-scheme:dark}';
+  if (css === themeCss) return;
+  themeCss = css;
+  let el = document.getElementById('themeVars');
+  // After the page's own styles, so the theme wins over the defaults there.
+  if (!el) { el = document.createElement('style'); el.id = 'themeVars'; document.body.appendChild(el); }
+  el.textContent = css;
+}
+// Light or dark on this device only. Inside the Claude viewer the viewer decides.
+const APPEAR = { system: ['auto', 'לפי המכשיר'], light: ['sun', 'בהיר'], dark: ['moon', 'כהה'] };
+function getAppearance() { try { const a = localStorage.getItem(APPEAR_KEY); return APPEAR[a] ? a : 'system'; } catch (e) { return 'system'; } }
+function applyAppearance() {
+  if (inViewer) return;
+  const a = getAppearance(), b = document.getElementById('appearBtn');
+  if (a === 'system') rootEl.removeAttribute('data-theme'); else rootEl.setAttribute('data-theme', a);
+  if (b) {
+    b.hidden = false;
+    b.innerHTML = icon(APPEAR[a][0]);
+    b.title = 'מראה: ' + APPEAR[a][1];
+    b.setAttribute('aria-label', 'מראה במכשיר הזה: ' + APPEAR[a][1] + '. הקשה מחליפה.');
+  }
+}
 
 /* ---------- example data ---------- */
 function seed() {
@@ -1070,7 +1307,10 @@ function seed() {
     ],
     req: { s_am: { r_lead: 1, r_cash: 2, r_recv: 1 }, s_pm: { r_lead: 1, r_cash: 2, r_stock: 1 } },
     closed: { '5|s_pm': true, '6|s_am': true, '6|s_pm': true },
-    rules: { minRest: 10 },
+    rules: { minRest: 10, deadline: { on: true, day: 4, time: '18:00', tz: '' } },
+    theme: { preset: 'blue' },
+    exportStyle: 'color',
+    logo: null,
     employees: [
       { id: 'e_noa', name: 'נועה', number: '1001', roles: ['r_lead', 'r_cash'], max: 5 },
       { id: 'e_yosi', name: 'יוסי', number: '1002', roles: ['r_lead', 'r_recv'], max: 5 },
@@ -1127,6 +1367,10 @@ function migrate(s) {
   delete s.prefs.mode;
   delete s.prefs.me;
   if (!s.prefs.session) s.prefs.session = null;
+  if (!s.theme) s.theme = { preset: 'blue' };
+  if (!s.exportStyle) s.exportStyle = 'color';
+  s.rules = Object.assign({ minRest: 10 }, s.rules);
+  if (!s.rules.deadline) s.rules.deadline = DEF_DEADLINE();
   if (!s.managerCode) s.managerCode = DEMO_CODE;
   const used = new Set(s.employees.map(e => e.number).filter(Boolean));
   let next = 1001;
@@ -1152,6 +1396,9 @@ function blankState() {
   s.avail = {};
   s.weeks = {};
   s.prefs = { session: null, demoNote: false };
+  s.rules = { minRest: 10, deadline: DEF_DEADLINE() };
+  s.logo = null;
+  s.logoVer = null;
   return s;
 }
 
@@ -1164,6 +1411,7 @@ const ui = {
   signin: { tab: 'employee', name: '', number: '', code: '', err: '' },
   setup: { code: '', code2: '', err: '' },
   codeDraft: null, codeErr: '',
+  xprev: { key: '', url: '' }, logoBusy: false,
 };
 
 const roleById = id => state.roles.find(r => r.id === id);
@@ -1224,7 +1472,7 @@ async function rpc(fn, args, keepalive) {
   }
   return data;
 }
-const cfgOf = () => ({ store: state.store, roles: state.roles, shifts: state.shifts, req: state.req, closed: state.closed, rules: state.rules });
+const cfgOf = () => ({ store: state.store, roles: state.roles, shifts: state.shifts, req: state.req, closed: state.closed, rules: state.rules, theme: state.theme, exportStyle: state.exportStyle });
 const weekOf = w => ({ slots: w.slots || {}, over: w.over || {}, published: w.published || null });
 const availOf = r => ({ slots: r.slots || {}, note: r.note || '', submitted: !!r.submittedAt });
 const empOf = e => ({ id: e.id, name: e.name, number: e.number, roles: e.roles, max: e.max });
@@ -1249,7 +1497,9 @@ function applyServer(d) {
   state.shifts = c.shifts || [];
   state.req = c.req || {};
   state.closed = c.closed || {};
-  state.rules = c.rules || { minRest: 10 };
+  state.rules = Object.assign({ minRest: 10, deadline: DEF_DEADLINE() }, c.rules || {});
+  state.theme = c.theme || { preset: 'blue' };
+  state.exportStyle = c.exportStyle || 'color';
   state.employees = d.employees || [];
   state.avail = d.avail || {};
   state.weeks = {};
@@ -1354,8 +1604,9 @@ async function refresh(force) {
     const view = () => canon({ c: cfgOf(), e: state.employees, a: state.avail, w: state.weeks, s: state.prefs.session });
     const before = view();
     applyServer(d);
+    const logoChanged = await syncLogo(d.logoVer);
     syncWeek(ui.week);
-    if (view() !== before) render();
+    if (logoChanged || view() !== before) render();
   } catch (err) {
     if (err.code === 'auth') endSession('expired');
   } finally {
@@ -1377,9 +1628,9 @@ function endSession(reason) {
   net.failures = 0;
   net.base = null;
   tokenSet(null);
-  const store = state.store;
+  const keep = { store: state.store, theme: state.theme, logo: state.logo, logoVer: state.logoVer };
   state = blankState();
-  state.store = store;
+  Object.assign(state, keep);
   ui.sheet = null;
   ui.undo = null;
   net.phase = 'signin';
@@ -1393,14 +1644,17 @@ function endSession(reason) {
 async function enter() {
   net.phase = 'loading';
   render();
+  let loaded;
   try {
-    applyServer(await rpc('sadran_load', { p_token: net.token }));
+    loaded = await rpc('sadran_load', { p_token: net.token });
+    applyServer(loaded);
   } catch (err) {
     if (err.code === 'auth') { tokenSet(null); return false; }
     net.phase = 'down';
     render();
     return true;
   }
+  await syncLogo(loaded.logoVer);
   net.phase = 'ready';
   net.failures = 0;
   const s = state.prefs.session, h = location.hash.slice(1);
@@ -1410,6 +1664,7 @@ async function enter() {
   ui.setup = { code: '', code2: '', err: '' };
   render();
   window.scrollTo(0, 0);
+  refreshPush(true);
   return true;
 }
 async function remoteStart() {
@@ -1420,11 +1675,139 @@ async function remoteStart() {
   try {
     const st = await rpc('sadran_status');
     state.store = { name: (st && st.store) || '' };
+    state.theme = (st && st.theme) || { preset: 'blue' };
+    await syncLogo(st && st.logoVer);
     net.phase = st && st.configured ? 'signin' : 'setup';
   } catch (err) {
     net.phase = 'down';
   }
   render();
+}
+
+/* ---------- store logo ----------
+   Resized in the page, kept in the database as a data URL and cached on each device by version. */
+function logoCacheGet(ver) { try { const c = JSON.parse(localStorage.getItem(LOGO_KEY) || 'null'); return c && c.ver === ver ? c.data : null; } catch (e) { return null; } }
+function logoCacheSet(ver, data) { try { if (data) localStorage.setItem(LOGO_KEY, JSON.stringify({ ver, data })); else localStorage.removeItem(LOGO_KEY); } catch (e) { /* the logo is then fetched each visit */ } }
+// Bring the logo up to date with the version the server reports. True when it changed.
+async function syncLogo(ver) {
+  if (!REMOTE) return false;
+  if (!ver) {
+    const had = !!state.logo;
+    state.logo = null; state.logoVer = null; logoCacheSet(null, null);
+    return had;
+  }
+  if (ver === state.logoVer && state.logo) return false;
+  const cached = logoCacheGet(ver);
+  if (cached) { state.logo = cached; state.logoVer = ver; return true; }
+  try {
+    const d = await rpc('sadran_logo');
+    if (d && d.logo) { state.logo = d.logo; state.logoVer = d.logoVer; logoCacheSet(d.logoVer, d.logo); return true; }
+  } catch (e) { /* keep what is shown */ }
+  return false;
+}
+// Shrink an uploaded image to at most 360 px a side and encode it compactly.
+async function logoFromFile(file) {
+  if (!/^image\//.test(file.type)) throw { code: 'type' };
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    const nw = img.naturalWidth || 360, nh = img.naturalHeight || 360;
+    for (let max = 360; max >= 120; max = Math.round(max * .75)) {
+      const sc = Math.min(1, max / Math.max(nw, nh)), w = Math.max(1, Math.round(nw * sc)), h = Math.max(1, Math.round(nh * sc));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      let data = c.toDataURL('image/png');
+      const webp = c.toDataURL('image/webp', .9);
+      if (webp.indexOf('data:image/webp') === 0 && webp.length < data.length) data = webp;
+      if (data.length <= 160000) return data;
+    }
+    throw { code: 'size' };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* ---------- availability deadline ----------
+   The availability for a week is due on a day and time in the week before it. */
+function deadlineOf(wk) {
+  const dl = state.rules.deadline;
+  if (!dl || !dl.on) return null;
+  const d = addDays(fromKey(wk), -7 + (+dl.day || 0)), t = mins(dl.time || '18:00');
+  d.setHours(Math.floor(t / 60), t % 60, 0, 0);
+  return d;
+}
+const deadlineText = d => dayTitle(d.getDay()) + ' ' + ltr(dm(d)) + ' בשעה ' + ltr(pad(d.getHours()) + ':' + pad(d.getMinutes()));
+
+/* ---------- notifications ----------
+   This browser subscribes with the browser's push service; the subscription is kept in the
+   database, and the sadran-remind function sends the reminders. */
+const push = { state: 'unknown', busy: false };
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const standalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushSupported = () => REMOTE && window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+let swReg = null;
+async function swRegistration() {
+  if (!REMOTE || !window.isSecureContext || !('serviceWorker' in navigator)) return null;
+  if (!swReg) swReg = await navigator.serviceWorker.register('sw.js');
+  return swReg;
+}
+function b64uBytes(str) {
+  let s = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+async function currentSub() {
+  try { const r = await swRegistration(); return r ? await r.pushManager.getSubscription() : null; } catch (e) { return null; }
+}
+async function readPushState() {
+  if (!pushSupported()) return isIOS && !standalone() ? 'ios' : 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  const sub = await currentSub();
+  return sub && Notification.permission === 'granted' ? 'on' : 'off';
+}
+function savePushSub(sub) {
+  const j = sub.toJSON();
+  return rpc('sadran_push_subscribe', { p_token: net.token, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+}
+// Read the state again; after sign-in, also tie an existing subscription to whoever is signed in now.
+async function refreshPush(resend) {
+  if (!REMOTE) return;
+  const st = await readPushState();
+  if (st === 'on' && resend) { const sub = await currentSub(); if (sub) savePushSub(sub).catch(() => { /* tried again next sign-in */ }); }
+  if (st !== push.state) { push.state = st; if (net.phase === 'ready') render(); }
+}
+async function dropPushSub(token) {
+  const sub = await currentSub();
+  if (!sub) return;
+  try { await rpc('sadran_push_unsubscribe', { p_token: token, p_endpoint: sub.endpoint }); } catch (e) { /* the server drops it when it bounces */ }
+  try { await sub.unsubscribe(); } catch (e) { /* already gone */ }
+}
+function pushCard(who) {
+  if (!REMOTE) return '';
+  const st = push.state, mgr = who === 'manager';
+  const text = {
+    on: mgr ? 'ההתראות פועלות במכשיר הזה: כשהמועד עובר תגיע רשימה של מי שלא הגיש/ה.' : 'ההתראות פועלות במכשיר הזה. אם המועד להגשה יעבור לפני שהגשת, תגיע תזכורת.',
+    off: mgr ? 'אפשר לקבל במכשיר הזה התראה עם רשימת מי שלא הגיש/ה בזמן.' : 'אפשר לקבל תזכורת בטלפון אם המועד להגשה עובר ועוד לא הגשת.',
+    denied: 'ההתראות חסומות בדפדפן הזה. אפשר לאשר אותן בהגדרות האתר בדפדפן, ואז לחזור לכאן.',
+    ios: 'באייפון ההתראות עובדות רק מהאתר שנוסף למסך הבית: בספארי מקישים על "שיתוף", בוחרים "הוספה למסך הבית", ופותחים את האתר משם.',
+    unsupported: 'הדפדפן הזה לא תומך בהתראות. אפשר לנסות בכרום או בספארי עדכני.',
+    unknown: 'בודק אם הדפדפן תומך בהתראות…',
+  }[st];
+  const btn = st === 'on' ? '<button type="button" class="btn" id="pushOff" data-act="pushOff"' + (push.busy ? ' disabled' : '') + '>כיבוי ההתראות</button>'
+    : st === 'off' ? '<button type="button" class="btn btn-primary" id="pushOn" data-act="pushOn"' + (push.busy ? ' disabled' : '') + '>' + icon('bell') + (push.busy ? 'מפעיל…' : 'הפעלת התראות') + '</button>' : '';
+  return '<div class="push-row"><span class="push-st is-' + st + '">' + icon('bell') + '</span><p class="sub">' + text + '</p>' + btn + '</div>';
+}
+async function callRemind(week) {
+  let res, d = null;
+  try {
+    res = await fetch(BACKEND.url + '/functions/v1/sadran-remind', {
+      method: 'POST', headers: { apikey: BACKEND.key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: net.token, week }),
+    });
+    d = await res.json().catch(() => null);
+  } catch (e) { throw { code: 'network' }; }
+  if (res.status === 401) throw { code: 'auth' };
+  if (!res.ok || !d) throw { code: 'server' };
+  return d;
 }
 
 /* ---------- staffing model ---------- */
@@ -1482,6 +1865,19 @@ function restClash(d1, sh1, d2, sh2) {
   const gap = Math.max(B[0] - A[1], A[0] - B[1]);
   return gap < state.rules.minRest * 60;
 }
+/* ---------- availability values ----------
+   A shift is 1 (can), 2 (prefers), or { v: 1|2, t: [[from, to], ...] } for part of it (up to two
+   ranges). A null end of a range means the start or end of the shift, so it follows shift changes. */
+const slotV = x => (x && typeof x === 'object' ? (x.v === 2 ? 2 : 1) : x === 2 ? 2 : x ? 1 : 0);
+const slotT = x => (x && typeof x === 'object' && Array.isArray(x.t) && x.t.length ? x.t : null);
+const fullAvail = x => !!slotV(x) && !slotT(x);
+function slotRanges(x, sh) { const t = slotT(x); return t && sh ? t.map(r => [r[0] || sh.start, r[1] || sh.end]) : null; }
+function rangesText(x, sh) { const r = slotRanges(x, sh); return r ? r.map(q => q[0] + '–' + q[1]).join(', ') : ''; }
+function hoursOf(wk, empId, k) {
+  const rec = availRec(wk, empId);
+  return rec ? rangesText(rec.slots[k], shiftById(unsk(k)[1])) : '';
+}
+
 // Everything that stands in the way of placing `emp` in a position. Empty list = a clean fit.
 function issues(wk, d, shId, roleId, emp, self) {
   const w = state.weeks[wk], out = [], k = sk(d, shId);
@@ -1489,14 +1885,16 @@ function issues(wk, d, shId, roleId, emp, self) {
   const av = availRec(wk, emp.id);
   if (!av || !av.submittedAt) out.push('nosubmit');
   else if (!av.slots[k]) out.push('unavail');
+  else if (slotT(av.slots[k])) out.push('partial');
   const mine = empShifts(w, emp.id, self);
   if (mine.some(m => m.k === k)) out.push('inslot');
   else if (mine.some(m => restClash(m.d, m.sh, d, shId))) out.push('rest');
   if (mine.length + 1 > emp.max) out.push('max');
   return out;
 }
-const ISSUE_SHORT = { norole: 'לא בתפקיד', nosubmit: 'לא הוגשה זמינות', unavail: 'לא זמין/ה', rest: 'מנוחה קצרה', inslot: 'כפול במשמרת' };
-function issueText(z, e) {
+const ISSUE_SHORT = { norole: 'לא בתפקיד', nosubmit: 'לא הוגשה זמינות', unavail: 'לא זמין/ה', rest: 'מנוחה קצרה', inslot: 'כפול במשמרת', partial: 'זמינות חלקית' };
+function issueText(z, e, hours) {
+  if (z === 'partial') return hours ? 'זמין/ה רק ב־' + ltr(hours) : 'זמין/ה רק בחלק מהמשמרת';
   if (z === 'norole') return 'לא מוגדר/ת לתפקיד הזה';
   if (z === 'nosubmit') return 'טרם הגיש/ה זמינות';
   if (z === 'unavail') return 'לא זמין/ה במשמרת הזו';
@@ -1517,7 +1915,7 @@ function autoSchedule(wk, fillOnly) {
   const cands = p => state.employees.filter(e => fits(e, p));
   const score = (e, p) => {
     const load = empShifts(w, e.id).length;
-    const pref = state.avail[wk][e.id].slots[p.k] === 2 ? 2 : 0;
+    const pref = slotV(state.avail[wk][e.id].slots[p.k]) === 2 ? 2 : 0;
     return pref + (1 - load / e.max) * 3 - (e.roles.length - 1) * 0.6 + Math.random() * 0.8;
   };
   const pick = (p, list) => list.map(e => [score(e, p), e]).sort((a, b) => b[0] - a[0])[0][1];
@@ -1658,7 +2056,7 @@ function weekGrid(wk, slots, opt) {
           const is = opt.edit && e ? issues(wk, d, sh.id, p.role, e, { k, i }).filter(z => z !== 'max') : [];
           if (opt.me && p.emp === opt.me) cls += ' is-me';
           who = '<span class="pos-n">' + esc(e ? e.name : 'עובד/ת שנמחק/ה') + '</span>' +
-            (is.length ? '<span class="pos-w">' + icon('alert') + is.map(z => ISSUE_SHORT[z]).join(' · ') + '</span>' : '');
+            (is.length ? '<span class="pos-w">' + icon('alert') + is.map(z => z === 'partial' ? 'חלקי ' + ltr(hoursOf(wk, p.emp, k)) : ISSUE_SHORT[z]).join(' · ') + '</span>' : '');
           if (opt.edit && p.lock) x = icon('lock');
         }
         const inner = roleChip(p.role) + '<span class="pos-who">' + who + '</span><span class="pos-x">' + x + '</span>';
@@ -1694,9 +2092,12 @@ function availEditor(wk, empId) {
     for (const sh of state.shifts) {
       const k = sk(d, sh.id);
       if (state.closed[k]) { grid += '<span class="av-cell is-closed">סגור</span>'; continue; }
-      const v = rec.slots[k] || 0;
-      grid += '<button type="button" class="av-cell" id="av-' + empId + '-' + k + '" data-v="' + v + '" data-act="av" data-emp="' + empId + '" data-k="' + k + '" aria-label="' + dayTitle(d) + ' ' + esc(sh.name) + ': ' + ['לא אפשרי', 'אפשר', 'מועדף'][v] + '">' +
-        (v === 2 ? icon('star') + 'מועדף' : v === 1 ? icon('check') + 'אפשר' : '—') + '</button>';
+      const x = rec.slots[k], v = slotV(x), part = slotRanges(x, sh), hours = part ? part.map(q => q[0] + '–' + q[1]).join(', ') : '';
+      grid += '<span class="av-wrap" data-v="' + v + '">' +
+        '<button type="button" class="av-cell' + (part ? ' is-part' : '') + '" id="av-' + empId + '-' + k + '" data-v="' + v + '" data-act="av" data-emp="' + empId + '" data-k="' + k + '" aria-label="' + dayTitle(d) + ' ' + esc(sh.name) + ': ' + ['לא אפשרי', 'אפשר', 'מועדף'][v] + (hours ? ', בשעות ' + esc(hours) : '') + '">' +
+        '<span class="av-l">' + (v === 2 ? icon('star') + 'מועדף' : v === 1 ? icon('check') + 'אפשר' : '—') + '</span>' +
+        (part ? part.map(q => '<span class="av-h">' + esc(q[0] + '–' + q[1]) + '</span>').join('') : '') + '</button>' +
+        '<button type="button" class="av-time" id="avt-' + empId + '-' + k + '" data-act="avTime" data-emp="' + empId + '" data-k="' + k + '" title="שעות מסוימות" aria-label="שעות מסוימות ב' + dayTitle(d) + ', ' + esc(sh.name) + '">' + icon('clock') + '</button></span>';
     }
   }
   const quick = state.shifts.map(sh => '<button type="button" class="chipbtn" data-act="avFill" data-emp="' + empId + '" data-sh="' + sh.id + '">כל משמרות ה' + esc(sh.name) + '</button>').join('') +
@@ -1752,7 +2153,7 @@ function coverageRisks(wk) {
   for (let d = 0; d < 7; d++) for (const sh of state.shifts) {
     const k = sk(d, sh.id), req = required(wk, d, sh.id);
     for (const roleId in req) {
-      const have = state.employees.filter(e => e.roles.includes(roleId) && isSubmitted(wk, e.id) && availRec(wk, e.id).slots[k]).length;
+      const have = state.employees.filter(e => e.roles.includes(roleId) && isSubmitted(wk, e.id) && fullAvail(availRec(wk, e.id).slots[k])).length;
       if (have < req[roleId]) out.push({ d, sh, roleId, have, need: req[roleId] });
     }
   }
@@ -1771,15 +2172,15 @@ function viewAvailability() {
         const k = sk(d, sh.id);
         if (state.closed[k]) return '<i class="c cx" title="סגור"></i>';
         if (!sub) return '<i class="c cq" title="טרם הוגש"></i>';
-        const v = rec.slots[k] || 0;
-        return '<i class="c c' + v + '" title="' + dayTitle(d) + ' ' + esc(sh.name) + ': ' + ['לא', 'אפשר', 'מועדף'][v] + '"></i>';
+        const x = rec.slots[k], v = slotV(x), part = slotT(x);
+        return '<i class="c c' + v + (part ? ' cp' : '') + '" title="' + dayTitle(d) + ' ' + esc(sh.name) + ': ' + (part ? 'חלקי, ' + esc(rangesText(x, sh)) : ['לא', 'אפשר', 'מועדף'][v]) + '"></i>';
       }).join('') + '</span></td>').join('') + '</tr>';
   }).join('');
   const foot = '<tr><th class="mx-name">זמינים</th>' + days.map(d => '<td><span class="cells">' + state.shifts.map(sh => {
     const k = sk(d, sh.id), req = required(wk, d, sh.id);
     const need = Object.values(req).reduce((a, b) => a + b, 0);
     if (!need) return '<i class="cn is-off">·</i>';
-    const have = emps.filter(e => isSubmitted(wk, e.id) && availRec(wk, e.id).slots[k]).length;
+    const have = emps.filter(e => isSubmitted(wk, e.id) && fullAvail(availRec(wk, e.id).slots[k])).length;
     return '<i class="cn' + (have < need ? ' is-bad' : '') + '" title="' + have + ' זמינים, ' + need + ' נדרשים">' + have + '</i>';
   }).join('') + '</span></td>').join('') + '</tr>';
   const risks = coverageRisks(wk);
@@ -1787,12 +2188,14 @@ function viewAvailability() {
   return '<section class="wk-head">' + weekNav() + '</section>' +
     '<section class="card stack">' +
     '<div class="sum-top"><div class="sum-num"><span class="num t">' + (emps.length - pending.length) + '/' + emps.length + '</span><span class="sub">עובדים הגישו זמינות</span></div>' +
-    (pending.length ? '<button type="button" class="btn" id="btnRemind" data-act="remind">' + icon('copy') + 'הודעת תזכורת</button>' : '') + '</div>' +
+    (pending.length ? '<div class="acts">' + (REMOTE ? '<button type="button" class="btn btn-primary" id="btnRemindNow" data-act="remindNow"' + (net.busy ? ' disabled' : '') + '>' + icon('bell') + 'שליחת התראה</button>' : '') +
+      '<button type="button" class="btn" id="btnRemind" data-act="remind">' + icon('copy') + 'הודעת תזכורת</button></div>' : '') + '</div>' +
+    (deadlineOf(wk) ? '<p class="sub">מועד אחרון להגשה: ' + deadlineText(deadlineOf(wk)) + (Date.now() > deadlineOf(wk).getTime() ? ' (עבר)' : '') + '</p>' : '') +
     (pending.length ? '<p class="banner banner-warn">' + icon('alert') + '<span>טרם הגישו: ' + pending.map(e => esc(e.name)).join(', ') + '. אפשר להקיש על שם בטבלה ולמלא בשמם.</span></p>'
       : (emps.length ? '<p class="banner banner-ok">' + icon('check') + '<span>כל הצוות הגיש זמינות לשבוע הזה.</span></p>' : '')) +
     '</section>' +
     '<section class="card stack"><div><h2 class="h2">מי זמין מתי</h2><p class="sub">בכל יום, מימין לשמאל: ' + order + '. הקשה על שם פותחת את הזמינות לעריכה.</p></div>' +
-    '<div class="legend"><span><i class="c c1"></i>אפשר</span><span><i class="c c2"></i>מועדף</span><span><i class="c c0"></i>לא</span><span><i class="c cq"></i>טרם הוגש</span><span><i class="c cx"></i>סגור</span></div>' +
+    '<div class="legend"><span><i class="c c1"></i>אפשר</span><span><i class="c c2"></i>מועדף</span><span><i class="c c1 cp"></i>חלק מהמשמרת</span><span><i class="c c0"></i>לא</span><span><i class="c cq"></i>טרם הוגש</span><span><i class="c cx"></i>סגור</span></div>' +
     (emps.length ? '<div class="scroll-x"><table class="mx"><thead>' + head + '</thead><tbody>' + rows + '</tbody><tfoot>' + foot + '</tfoot></table></div>' : '<p class="sub">עוד אין עובדים. מוסיפים אותם בלשונית הצוות.</p>') +
     '</section>' +
     '<section class="card stack"><div><h2 class="h2">איפה צפוי מחסור</h2><p class="sub">משמרות שבהן מספר הזמינים לתפקיד קטן מהנדרש, עוד לפני השיבוץ.</p></div>' +
@@ -1819,7 +2222,7 @@ function viewTeam() {
 
 function viewSetup() {
   const roles = state.roles.map(r =>
-    '<div class="set-row"><button type="button" class="swatch hl-' + r.color + '" id="sw-' + r.id + '" data-act="roleColor" data-id="' + r.id + '" aria-label="החלפת צבע הסימון"></button>' +
+    '<div class="set-row"><button type="button" class="swatch hl-' + r.color + '" id="sw-' + r.id + '" data-act="roleColor" data-id="' + r.id + '" aria-label="צבע התפקיד: ' + (HL_NAMES[r.color - 1] || '') + '. הקשה לבחירת צבע אחר"></button>' +
     '<input class="input" id="role-' + r.id + '" data-bind="role.name" data-id="' + r.id + '" value="' + esc(r.name) + '" aria-label="שם התפקיד" autocomplete="off">' +
     (state.roles.length > 1 ? confirmBtn('role-' + r.id, icon('trash'), 'roleDel', 'data-id="' + r.id + '"', 'btn btn-icon btn-quiet btn-danger" aria-label="מחיקת התפקיד') : '') + '</div>').join('');
   const shifts = state.shifts.map(sh => {
@@ -1837,7 +2240,12 @@ function viewSetup() {
   }).join('');
   return '<section class="pagehead"><div><h1 class="h1">הגדרות</h1><p class="sub">התפקידים, המשמרות והכללים שלפיהם נבנה הסידור.</p></div></section>' +
     '<section class="card stack"><h2 class="h2">החנות</h2><div class="field"><label class="label" for="storeInput">שם החנות או הסניף</label>' +
-    '<input class="input" id="storeInput" data-bind="store.name" value="' + esc(state.store.name) + '" autocomplete="off"></div></section>' +
+    '<input class="input" id="storeInput" data-bind="store.name" value="' + esc(state.store.name) + '" autocomplete="off"></div>' +
+    '<div class="field"><span class="label">לוגו</span><div class="logo-row"><span class="logo-box">' + (state.logo ? '<img src="' + esc(state.logo) + '" alt="הלוגו של החנות">' : 'אין לוגו') + '</span>' +
+    '<button type="button" class="btn" id="btnLogo" data-act="logoPick"' + (ui.logoBusy ? ' disabled' : '') + '>' + icon('image') + (ui.logoBusy ? 'שומר…' : state.logo ? 'החלפת הלוגו' : 'העלאת לוגו') + '</button>' +
+    (state.logo ? '<button type="button" class="btn btn-quiet btn-danger" id="btnLogoDel" data-act="logoDel"' + (ui.logoBusy ? ' disabled' : '') + '>הסרה</button>' : '') + '</div>' +
+    '<p class="sub">PNG, JPEG, WebP או SVG. הלוגו מופיע בראש האתר, במסך הכניסה ובקבצים שמייצאים מהסידור.</p></div></section>' +
+    themeCard() + exportCard() + deadlineCard() +
     (REMOTE
       ? '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם קוד המנהל/ת. החלפת הקוד מנתקת מכשירים אחרים שנכנסו כמנהל/ת.</p></div>' +
         '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת חדש (6 עד 12 ספרות)</label>' +
@@ -1848,7 +2256,7 @@ function viewSetup() {
         '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft != null ? ui.codeDraft : state.managerCode) + '" inputmode="numeric" autocomplete="off"></div>' +
         '<button type="submit" class="btn" id="btnCodeSave">שמירת הקוד</button></form>') +
     (ui.codeErr ? '<p class="err" role="alert">' + ui.codeErr + '</p>' : '') + '</section>' +
-    '<section class="card stack"><div><h2 class="h2">תפקידים</h2><p class="sub">למשל קופאי/ת, אחראי/ת משמרת, או אחריות על משימה מסוימת. הקשה על הצבע מחליפה את הסימון.</p></div>' + roles +
+    '<section class="card stack"><div><h2 class="h2">תפקידים</h2><p class="sub">למשל קופאי/ת, אחראי/ת משמרת, או אחריות על משימה מסוימת. הקשה על הצבע פותחת ' + COLORS + ' צבעים לבחירה.</p></div>' + roles +
     '<div><button type="button" class="btn" id="btnAddRole" data-act="roleAdd">' + icon('plus') + 'תפקיד</button></div></section>' +
     '<section class="card stack"><div><h2 class="h2">משמרות ותקן איוש</h2><p class="sub">לכל משמרת: שעות, כמה עובדים נדרשים מכל תפקיד, ובאילו ימים היא פעילה.</p></div>' +
     '<div class="set-grid">' + shifts + '</div>' +
@@ -1863,6 +2271,41 @@ function viewSetup() {
       : '<section class="card stack"><h2 class="h2">על האב־טיפוס</h2>' +
         '<p class="sub">הנתונים נשמרים בדפדפן של המכשיר הזה בלבד, והכניסה בשם ובמספר היא הדמיה שלא מגינה עליהם. בגרסה שמחוברת למסד הנתונים כל עובד/ת מגיש/ה זמינות מהטלפון האישי והמנהל/ת רואה הכול במקום אחד.</p>' +
         '<div>' + resetBtn() + '</div></section>');
+}
+
+function themeCard() {
+  const t = state.theme || {}, cur = t.preset || 'blue', custom = cur === 'custom' && t.custom;
+  const sw = PRESETS.map(p => '<button type="button" class="tsw" id="th-' + p.id + '" data-act="themeSet" data-p="' + p.id + '" aria-pressed="' + (cur === p.id) + '" style="--c:' + p.accent + '"><span class="tsw-dot"></span>' + p.name + '</button>').join('') +
+    '<label class="tsw tsw-custom' + (cur === 'custom' ? ' is-on' : '') + (custom ? ' is-set' : '') + '" for="themeCustom"' + (custom ? ' style="--c:' + esc(t.custom) + '"' : '') + '><span class="tsw-dot"></span>צבע משלך' +
+    '<input type="color" id="themeCustom" data-bind="theme.custom" value="' + esc(t.custom || '#2343D0') + '" aria-label="בחירת צבע משלך לאתר"></label>';
+  return '<section class="card stack"><div><h2 class="h2">עיצוב</h2><p class="sub">הצבע של האתר לכל הצוות. בנוסף, כל אחד/ת בוחר/ת מראה בהיר או כהה במכשיר שלו/ה, בכפתור שבראש המסך.</p></div>' +
+    '<div class="themes" role="group" aria-label="ערכת צבעים">' + sw + '</div></section>';
+}
+function exportCard() {
+  const cur = state.exportStyle || 'color';
+  const opts = EXPORT_STYLES.map(x => {
+    const C = exportColors(x.id);
+    return '<button type="button" class="xopt" id="xs-' + x.id + '" data-act="xStyle" data-s="' + x.id + '" aria-pressed="' + (x.id === cur) + '">' +
+      '<span class="xopt-sw" aria-hidden="true"><i style="background:' + C.band + '"></i><i style="background:' + C.dayBg + '"></i><i style="background:' + C.panel + '"></i><i style="background:' + (C.hl ? C.hl(1) : C.line) + '"></i><i style="background:' + (C.hl ? C.hl(4) : C.ink) + '"></i></span>' + x.name + '</button>';
+  }).join('');
+  return '<section class="card stack"><div><h2 class="h2">ייצוא הסידור</h2><p class="sub">העיצוב של קובצי ה־PDF והתמונה שיוצאים מהסידור, אצל המנהל/ת ואצל העובדים. התצוגה למטה היא של השבוע שנבחר בסידור.</p></div>' +
+    '<div class="xopts" role="group" aria-label="עיצוב הקובץ">' + opts + '</div>' +
+    (ui.xprev.url ? '<img class="xprev" id="xPrev" alt="תצוגה מקדימה של הסידור בעיצוב שנבחר" src="' + ui.xprev.url + '">' : '<div class="xprev" id="xPrev">מכין תצוגה מקדימה…</div>') + '</section>';
+}
+function deadlineCard() {
+  const dl = state.rules.deadline || DEF_DEADLINE(), ex = defaultWeek();
+  return '<section class="card stack"><div><h2 class="h2">מועד אחרון להגשת זמינות</h2><p class="sub">הזמינות לכל שבוע מוגשת עד יום ושעה בשבוע שלפניו. העובדים רואים את המועד במסך הזמינות שלהם.</p></div>' +
+    '<label class="check" for="dlOn"><input type="checkbox" id="dlOn" data-bind="dl.on"' + (dl.on ? ' checked' : '') + '><span>יש מועד אחרון להגשה</span></label>' +
+    (dl.on
+      ? '<div class="set-times"><div class="field"><label class="label" for="dlDay">יום (בשבוע שלפני)</label><select class="input" id="dlDay" data-bind="dl.day">' +
+        DAYS.map((n, i) => '<option value="' + i + '"' + (+dl.day === i ? ' selected' : '') + '>' + dayTitle(i) + '</option>').join('') + '</select></div>' +
+        '<div class="field"><label class="label" for="dlTime">שעה</label><input type="time" class="input" id="dlTime" data-bind="dl.time" value="' + esc(dl.time || '18:00') + '"></div></div>' +
+        '<p class="sub">לדוגמה, הזמינות לשבוע ' + ltr(weekLabel(ex)) + ' צריכה להגיע עד ' + deadlineText(deadlineOf(ex)) + '.</p>' +
+        (REMOTE
+          ? '<p class="banner">' + icon('bell') + '<span>כשהמועד עובר, מי שעוד לא הגיש/ה מקבל/ת התראה בטלפון, אם הפעיל/ה התראות במסך הזמינות. המנהל/ת מקבל/ת רשימה של מי שלא הגיש/ה.</span></p>' + pushCard('manager')
+          : '<p class="banner">' + icon('bell') + '<span>באתר המחובר, מי שלא הגיש/ה בזמן מקבל/ת התראה בטלפון. בהדגמה הזו ההתראות לא פעילות.</span></p>')
+      : '') +
+    '</section>';
 }
 
 /* ---------- sign-in ---------- */
@@ -1880,6 +2323,7 @@ function viewSignin() {
       '<div class="field"><label class="label" for="siNumber">מספר אישי</label><input class="input" id="siNumber" data-bind="si.number" value="' + esc(f.number) + '" inputmode="numeric" autocomplete="off"></div>'
     : '<div class="field"><label class="label" for="siCode">קוד מנהל/ת</label><input class="input" id="siCode" type="password" data-bind="si.code" value="' + esc(f.code) + '" inputmode="numeric" autocomplete="off"></div>';
   return '<section class="signin">' +
+    (state.logo ? '<img class="signin-logo" src="' + esc(state.logo) + '" alt="' + esc(state.store.name || 'לוגו החנות') + '">' : '') +
     '<div class="signin-h"><h1 class="h1">כניסה לסידור העבודה</h1><p class="sub">' + esc(state.store.name) + '</p></div>' +
     '<div class="seg" role="group" aria-label="סוג הכניסה">' +
     '<button type="button" class="seg-b" id="segEmp" data-act="signTab" data-tab="employee" aria-pressed="' + asEmp + '">עובד/ת</button>' +
@@ -1918,14 +2362,17 @@ const viewDown = () => '<section class="signin"><div class="card empty"><h1 clas
 function viewMyAvail() {
   const me = currentMe();
   const wk = ui.week, rec = availRec(wk, me.id), sub = rec && rec.submittedAt, pub = state.weeks[wk].published;
+  const due = deadlineOf(wk), late = due && Date.now() > due.getTime();
   return '<section class="wk-head">' + weekNav() + '</section>' +
     (pub ? '<p class="banner">' + icon('calendar') + '<span>הסידור לשבוע הזה כבר פורסם. שינוי בזמינות לא יעדכן אותו מעצמו, כדאי לדבר עם המנהל/ת.</span></p>' : '') +
     (sub ? '<p class="banner banner-ok">' + icon('check') + '<span>הזמינות הוגשה ' + stamp(sub) + '. שינויים נשמרים מיד.</span></p>'
-      : '<p class="banner banner-warn">' + icon('alert') + '<span>עוד לא הגשת זמינות לשבוע הזה.</span></p>') +
-    '<section class="card stack"><div><h1 class="h2">מתי אפשר לשבץ אותך?</h1><p class="sub">הקשה על משמרת מסמנת אותה: אפשר, אחר כך מועדף, ואז חזרה ללא.</p></div>' +
+      : '<p class="banner banner-warn">' + icon('alert') + '<span>עוד לא הגשת זמינות לשבוע הזה.' +
+        (due ? (late ? ' המועד להגשה, ' + deadlineText(due) + ', עבר. כדאי להגיש עכשיו.' : ' יש להגיש עד ' + deadlineText(due) + '.') : '') + '</span></p>') +
+    '<section class="card stack"><div><h1 class="h2">מתי אפשר לשבץ אותך?</h1><p class="sub">הקשה על משמרת מסמנת אותה: אפשר, אחר כך מועדף, ואז חזרה ללא. כפתור השעון שבכל משמרת מאפשר לבחור שעות מסוימות, עד שני טווחים.</p></div>' +
     availEditor(wk, me.id) +
     (sub ? '' : '<button type="button" class="btn btn-primary btn-block" id="btnSubmit" data-act="avSubmit" data-emp="' + me.id + '">' + icon('send') + 'שליחת הזמינות</button>') +
-    '</section>';
+    '</section>' +
+    (REMOTE ? '<section class="card stack"><h2 class="h2">התראות</h2>' + pushCard('employee') + '</section>' : '');
 }
 
 function viewMyShifts() {
@@ -1945,17 +2392,19 @@ function viewMyShifts() {
       if (p.emp !== me.id) return;
       const sp = span(d, sh.id);
       minutes += sp[1] - sp[0];
-      mine.push({ d, sh, role: p.role, mates: list.filter(q => q.emp && q.emp !== me.id).map(q => (empById(q.emp) || {}).name).filter(Boolean) });
+      mine.push({ d, sh, role: p.role, hours: hoursOf(wk, me.id, sk(d, sh.id)), mates: list.filter(q => q.emp && q.emp !== me.id).map(q => (empById(q.emp) || {}).name).filter(Boolean) });
     });
   }
   const hours = Math.round(minutes / 6) / 10;
   return head +
     '<section class="pagehead"><div><h1 class="h1">המשמרות של ' + esc(me.name) + '</h1><p class="sub">' +
-    (mine.length ? many(mine.length, 'משמרת אחת', 'משמרות') + ' · ' + hours + ' שעות · פורסם ' + stamp(pub.at) : 'פורסם ' + stamp(pub.at)) + '</p></div></section>' +
+    (mine.length ? many(mine.length, 'משמרת אחת', 'משמרות') + ' · ' + hours + ' שעות · פורסם ' + stamp(pub.at) : 'פורסם ' + stamp(pub.at)) + '</p></div>' +
+    '<button type="button" class="btn" id="btnExportMine" data-act="exportMine">' + icon('down') + 'שמירת הסידור</button></section>' +
     (mine.length
       ? '<section class="list">' + mine.map(m =>
         '<article class="myshift"><div class="myshift-d"><span class="myshift-dn">' + DAYS[m.d] + '</span>' + ltr(dm(addDays(start, m.d))) + '</div>' +
         '<div class="myshift-b"><div class="myshift-t"><strong data-sn="' + m.sh.id + '">' + esc(m.sh.name) + '</strong>' + shiftTime(m.sh) + roleChip(m.role) + '</div>' +
+        (m.hours ? '<span class="sub">בשעות שסימנת: ' + ltr(m.hours) + '</span>' : '') +
         (m.mates.length ? '<span class="sub">איתך במשמרת: ' + m.mates.map(esc).join(', ') + '</span>' : '') + '</div></article>').join('') + '</section>'
       : '<section class="card empty"><h2 class="h2">לא שובצת השבוע</h2><p class="sub">אין לך משמרות בסידור שפורסם לשבוע הזה.</p></section>') +
     '<details class="fold" data-fold="full"' + (ui.open.full ? ' open' : '') + '><summary>הסידור המלא של הצוות</summary><div class="stack" style="padding-top:10px">' +
@@ -1981,7 +2430,10 @@ function shareText(wk) {
       const list = w.slots[sk(d, sh.id)] || [];
       if (!list.length) continue;
       part.push(sh.name + ' (' + sh.start + '-' + sh.end + '):');
-      list.forEach(p => { const e = p.emp && empById(p.emp), r = roleById(p.role); part.push('• ' + (r ? r.name : '') + ': ' + (e ? e.name : '— חסר —')); });
+      list.forEach(p => {
+        const e = p.emp && empById(p.emp), r = roleById(p.role), h = p.emp ? hoursOf(wk, p.emp, sk(d, sh.id)) : '';
+        part.push('• ' + (r ? r.name : '') + ': ' + (e ? e.name : '— חסר —') + (h ? ' (' + h.replace(/–/g, '-') + ')' : ''));
+      });
     }
     if (part.length) lines.push('*' + dayTitle(d) + ' ' + dm(addDays(start, d)) + '*', ...part, '');
   }
@@ -1992,6 +2444,51 @@ function remindText(wk) {
 }
 
 const SHEETS = {
+  color(s) {
+    const r = roleById(s.id);
+    if (!r) return null;
+    return {
+      title: 'צבע לתפקיד', sub: esc(r.name),
+      body: '<div class="palette" role="group" aria-label="צבעים">' + HL.map((c, i) =>
+        '<button type="button" class="pal hl-' + (i + 1) + '" id="pal-' + (i + 1) + '" data-act="roleColorSet" data-c="' + (i + 1) + '" aria-pressed="' + (r.color === i + 1) + '" aria-label="' + HL_NAMES[i] + '" title="' + HL_NAMES[i] + '">' + (r.color === i + 1 ? icon('check') : '') + '</button>').join('') + '</div>' +
+        '<p class="sub">הצבע מסמן את התפקיד בסידור, בזמינות ובקבצים שמייצאים.</p>',
+    };
+  },
+  times(s) {
+    const u = unsk(s.k), sh = shiftById(u[1]);
+    if (!sh) return null;
+    const rows = s.ranges.map((r, i) => '<div class="trow"><span class="trow-l"><span>' + (i ? 'טווח שני' : 'טווח ראשון') + '</span>' +
+      (i ? '<button type="button" class="btn btn-quiet btn-danger" id="trDel" data-act="trDel" data-i="' + i + '">הסרה</button>' : '') + '</span>' +
+      '<input type="time" class="input" id="tr-' + i + '-0" data-bind="tr.' + i + '.0" value="' + esc(r[0]) + '" aria-label="' + (i ? 'טווח שני' : 'טווח ראשון') + ', משעה">' +
+      '<span aria-hidden="true">–</span>' +
+      '<input type="time" class="input" id="tr-' + i + '-1" data-bind="tr.' + i + '.1" value="' + esc(r[1]) + '" aria-label="' + (i ? 'טווח שני' : 'טווח ראשון') + ', עד שעה"></div>').join('');
+    return {
+      title: 'שעות מסוימות',
+      sub: dayTitle(u[0]) + ' · ' + esc(sh.name) + ' ' + ltr(sh.start + '–' + sh.end),
+      body: '<p class="sub">אפשר לבחור עד שני טווחי שעות בתוך המשמרת. טווח שמסתיים בסוף המשמרת יתעדכן אם שעות המשמרת ישתנו.</p>' + rows +
+        (s.ranges.length < 2 ? '<div><button type="button" class="btn btn-quiet" id="trAdd" data-act="trAdd">' + icon('plus') + 'טווח שני</button></div>' : '') +
+        '<div class="seg" role="group" aria-label="סוג הזמינות"><button type="button" class="seg-b" id="trV1" data-act="trV" data-v="1" aria-pressed="' + (s.v !== 2) + '">אפשר</button>' +
+        '<button type="button" class="seg-b" id="trV2" data-act="trV" data-v="2" aria-pressed="' + (s.v === 2) + '">מועדף</button></div>' +
+        (s.err ? '<p class="err" role="alert">' + s.err + '</p>' : ''),
+      foot: '<button type="button" class="btn btn-primary" id="trSave" data-act="trSave">שמירה</button>' +
+        (s.had ? '<button type="button" class="btn" id="trFull" data-act="trFull">כל המשמרת</button>' : '') +
+        '<button type="button" class="btn" data-act="close">ביטול</button>',
+    };
+  },
+  export(s) {
+    return {
+      title: 'ייצוא הסידור',
+      sub: 'שבוע ' + ltr(weekLabel(s.wk)) + ' · עיצוב ' + (EXPORT_STYLES.find(x => x.id === s.style) || EXPORT_STYLES[0]).name,
+      body: (s.url ? '<img class="xprev" id="exportImg" src="' + s.url + '" alt="הסידור כפי שיופיע בקובץ">' : '<div class="xprev">' + (s.fail ? 'לא הצלחתי להכין את הקובץ.' : 'מכין…') + '</div>') +
+        '<div class="seg" role="group" aria-label="סוג הקובץ"><button type="button" class="seg-b" id="xPdf" data-act="xFmt" data-f="pdf" aria-pressed="' + (s.fmt === 'pdf') + '">PDF</button>' +
+        '<button type="button" class="seg-b" id="xJpg" data-act="xFmt" data-f="jpg" aria-pressed="' + (s.fmt === 'jpg') + '">תמונה (JPEG)</button></div>' +
+        (s.draft ? '<p class="banner banner-warn">' + icon('alert') + '<span>הסידור הזה עוד לא פורסם כפי שהוא, ולכן הקובץ מסומן "טיוטה".</span></p>' : '') +
+        (s.mgr ? '<p class="sub">את העיצוב של הקובץ בוחרים בהגדרות, בכרטיס "ייצוא הסידור".</p>' : ''),
+      foot: '<button type="button" class="btn btn-primary" id="xSave" data-act="xSave"' + (s.blobs ? '' : ' disabled') + '>' + icon('down') + 'הורדה</button>' +
+        (s.canShare ? '<button type="button" class="btn" id="xShare" data-act="xShare"' + (s.blobs ? '' : ' disabled') + '>' + icon('share') + 'שיתוף</button>' : '') +
+        '<button type="button" class="btn" data-act="close">סגירה</button>',
+    };
+  },
   pos(s) {
     const wk = ui.week, w = state.weeks[wk], p = (w.slots[s.k] || [])[s.i];
     if (!p) return null;
@@ -1999,7 +2496,7 @@ const SHEETS = {
     const rows = state.employees.map(e => {
       const is = issues(wk, d, sh.id, p.role, e, s);
       const av = availRec(wk, e.id);
-      return { e, is, pref: !!(av && av.submittedAt && av.slots[s.k] === 2), load: empShifts(w, e.id).length };
+      return { e, is, pref: !!(av && av.submittedAt && slotV(av.slots[s.k]) === 2), hours: hoursOf(wk, e.id, s.k), load: empShifts(w, e.id).length };
     });
     const cur = rows.find(r => r.e.id === p.emp);
     const rest = rows.filter(r => r.e.id !== p.emp);
@@ -2011,7 +2508,7 @@ const SHEETS = {
     const row = (r, kind) => {
       const sub = kind === 'fit'
         ? '<span class="cand-s' + (r.pref ? ' is-good' : '') + '">' + (r.pref ? 'מעדיף/ה את המשמרת · ' : 'זמין/ה · ') + loadTxt(r) + '</span>'
-        : '<span class="cand-s is-warn">' + r.is.map(z => issueText(z, r.e)).join(' · ') + '</span>';
+        : '<span class="cand-s is-warn">' + r.is.map(z => issueText(z, r.e, r.hours)).join(' · ') + '</span>';
       return kind === 'busy'
         ? '<div class="cand"><span class="cand-n">' + esc(r.e.name) + '</span>' + sub + '</div>'
         : '<button type="button" class="cand" data-act="assign" data-emp="' + r.e.id + '"><span class="cand-n">' + esc(r.e.name) + '</span>' + sub + '<span class="cand-go">שיבוץ</span></button>';
@@ -2021,7 +2518,7 @@ const SHEETS = {
     if (cur) {
       const is = cur.is.filter(z => z !== 'inslot');
       body += '<div class="grp"><div class="grp-h">משובץ/ת כעת</div><div class="cands"><div class="cand is-cur"><span class="cand-n">' + esc(cur.e.name) + '</span>' +
-        '<span class="cand-s' + (is.length ? ' is-warn' : '') + '">' + (is.length ? is.map(z => issueText(z, cur.e)).join(' · ') : loadTxt(cur)) + '</span></div></div>' +
+        '<span class="cand-s' + (is.length ? ' is-warn' : '') + '">' + (is.length ? is.map(z => issueText(z, cur.e, cur.hours)).join(' · ') : loadTxt(cur)) + '</span></div></div>' +
         '<div class="quick"><button type="button" class="chipbtn" id="posLock" data-act="lock">' + (p.lock ? 'שחרור הנעילה' : 'נעילת השיבוץ') + '</button>' +
         '<button type="button" class="chipbtn" id="posClear" data-act="unassign">הסרת השיבוץ</button>' +
         '<span class="sub">' + (p.lock ? 'נעול: שיבוץ אוטומטי לא ישנה אותו.' : 'לא נעול: שיבוץ אוטומטי עשוי לשנות אותו.') + '</span></div></div>';
@@ -2046,6 +2543,7 @@ const SHEETS = {
     return {
       title: 'פעולות נוספות', sub: 'שבוע ' + ltr(weekLabel(ui.week)),
       body: '<div class="menu">' +
+        '<button type="button" class="menu-i" data-act="exportRoster">' + icon('down') + '<span><strong>ייצוא PDF או תמונה</strong><small>הסידור כקובץ להדפסה או לשליחה, בעיצוב שנבחר בהגדרות</small></span></button>' +
         '<button type="button" class="menu-i" data-act="fill">' + icon('plus') + '<span><strong>השלמת חסרים בלבד</strong><small>משבץ לעמדות הריקות בלי לגעת בשיבוצים קיימים</small></span></button>' +
         '<button type="button" class="menu-i" data-act="share">' + icon('copy') + '<span><strong>שיתוף כטקסט</strong><small>הסידור כהודעה מוכנה לקבוצת הצוות</small></span></button>' +
         (w.published ? '<button type="button" class="menu-i" data-act="unpublish">' + icon('undo') + '<span><strong>ביטול הפרסום</strong><small>העובדים יפסיקו לראות את הסידור לשבוע הזה</small></span></button>' : '') +
@@ -2247,6 +2745,31 @@ async function buildWorkbook() {
   ws.getColumn(2).numFmt = '@';   // keep the numbers as text so a leading zero survives
   return new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_MIME });
 }
+async function uploadLogo(file) {
+  ui.logoBusy = true;
+  render();
+  let data = null;
+  try { data = await logoFromFile(file); }
+  catch (err) { toast(err && err.code === 'size' ? 'התמונה גדולה מדי גם אחרי הקטנה. אפשר לנסות קובץ פשוט יותר.' : 'הקובץ הזה לא נפתח כתמונה. אפשר לנסות PNG או JPEG.'); }
+  ui.logoBusy = false;
+  if (data) await setLogo(data); else render();
+}
+async function setLogo(data) {
+  if (REMOTE) {
+    ui.logoBusy = true;
+    render();
+    let out = null;
+    try { out = await rpc('sadran_save_logo', { p_token: net.token, p_logo: data }); }
+    catch (err) { ui.logoBusy = false; if (err.code === 'auth') { endSession('expired'); return; } render(); toast(NET_ERR); return; }
+    ui.logoBusy = false;
+    if (!out || !out.ok) { render(); toast('לא הצלחתי לשמור את הלוגו. אפשר לנסות קובץ PNG או JPEG אחר.'); return; }
+    state.logoVer = out.logoVer;
+    logoCacheSet(out.logoVer, data);
+  }
+  state.logo = data;
+  render();
+  toast(data ? 'הלוגו נשמר.' : 'הלוגו הוסר.');
+}
 // Inside the Claude viewer a page cannot start a download itself, so it asks the viewer to save.
 async function saveFile(filename, blob) {
   if (window.claude && window.claude.use) {
@@ -2266,6 +2789,234 @@ async function saveFile(filename, blob) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast('הקובץ ירד למכשיר.');
+}
+
+/* ---------- roster export ----------
+   The week is drawn on a canvas in the export style the manager chose, then saved as a JPEG, or
+   wrapped in a one-page PDF (built here, so no library is needed and Hebrew text stays exact). */
+const EXPORT_STYLES = [
+  { id: 'color', name: 'צבעוני' },
+  { id: 'light', name: 'בהיר' },
+  { id: 'dark', name: 'כהה' },
+  { id: 'print', name: 'להדפסה' },
+];
+function exportColors(style) {
+  const tk = themeTokens(state.theme), L = tk.light, D = tk.dark;
+  const base = { miss: '#BE2A1E', missBg: '#FBE3E0', draft: '#8A5000', draftBg: '#FCECC8' };
+  if (style === 'dark') return Object.assign(base, { bg: D.bg, panel: D.surface, ink: D.ink, ink3: D['ink-3'], line: D.line, band: D.surface, bandInk: D.ink, title: D.ink, dayBg: D['surface-2'], dayInk: D.ink, accent: D.accent, hl: n => (HL[n - 1] || HL[11])[1], chipInk: D.ink, miss: '#FF8E82', missBg: '#471A1B', draft: '#F2BA5C', draftBg: '#3D2D0C', plate: true });
+  if (style === 'print') return Object.assign(base, { bg: '#FFFFFF', panel: '#FFFFFF', ink: '#000000', ink3: '#4A4A4A', line: '#8C8C8C', band: '#FFFFFF', bandInk: '#000000', title: '#000000', dayBg: '#E9E9E9', dayInk: '#000000', accent: '#000000', hl: null, chipInk: '#000000', miss: '#000000', missBg: '#FFFFFF', draft: '#000000', draftBg: '#E9E9E9', rule: true });
+  if (style === 'light') return Object.assign(base, { bg: '#FFFFFF', panel: '#FFFFFF', ink: L.ink, ink3: L['ink-3'], line: L.line, band: '#FFFFFF', bandInk: L['ink-3'], title: L.accent, dayBg: L['accent-soft'], dayInk: L.ink, accent: L.accent, hl: n => (HL[n - 1] || HL[11])[0], chipInk: L.ink, rule: true });
+  return Object.assign(base, { bg: L.bg, panel: '#FFFFFF', ink: L.ink, ink3: L['ink-3'], line: L.line, band: L.accent, bandInk: L['accent-ink'], title: L['accent-ink'], dayBg: L.accent, dayInk: L['accent-ink'], accent: L.accent, hl: n => (HL[n - 1] || HL[11])[0], chipInk: L.ink, plate: true });
+}
+const F_BODY = '"IBM Plex Sans Hebrew", "Noto Sans Hebrew", "Arial Hebrew", Arial, sans-serif';
+const F_DISP = '"Secular One", "IBM Plex Sans Hebrew", "Arial Hebrew", Arial, sans-serif';
+async function fontsReady() {
+  if (!document.fonts || !document.fonts.load) return;
+  const want = Promise.all(['400 40px "Secular One"', '600 28px "IBM Plex Sans Hebrew"', '700 28px "IBM Plex Sans Hebrew"'].map(f => document.fonts.load(f, 'אבג'))).catch(() => {});
+  await Promise.race([want, new Promise(r => setTimeout(r, 2500))]);
+}
+function rrect(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function fitText(g, text, max) {
+  if (g.measureText(text).width <= max) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (g.measureText(text.slice(0, m) + '…').width <= max) lo = m; else hi = m - 1; }
+  return text.slice(0, lo) + '…';
+}
+// Draw runs of text right to left; runs marked ltr (dates, times) keep their own order.
+function drawRuns(g, runs, xRight, y) {
+  let x = xRight;
+  for (const r of runs) {
+    g.font = r.font; g.fillStyle = r.color; g.direction = r.ltr ? 'ltr' : 'rtl'; g.textAlign = 'right';
+    g.fillText(r.text, x, y);
+    x -= g.measureText(r.text).width + (r.gap == null ? 12 : r.gap);
+  }
+  g.direction = 'rtl';
+  return x;
+}
+function runsWidth(g, runs) { return runs.reduce((a, r) => { g.font = r.font; return a + g.measureText(r.text).width + (r.gap == null ? 12 : r.gap); }, 0); }
+async function drawRoster(wk, slots, styleId, opt) {
+  opt = opt || {};
+  await fontsReady();
+  const C = exportColors(styleId), print = !C.hl;
+  const W = 2000, M = 56, LW = 200, DW = (W - 2 * M - LW) / 7, start = fromKey(wk), end = addDays(start, 6);
+  const POS = 80, HRS = 30, PADV = 18, HEAD = 200, DAYH = 92, FOOT = 70;
+  const hoursFor = (p, k) => (p.emp ? hoursOf(wk, p.emp, k) : '');
+  const rowH = state.shifts.map(sh => {
+    let tallest = 0;
+    for (let d = 0; d < 7; d++) {
+      const k = sk(d, sh.id), list = slots[k] || [];
+      tallest = Math.max(tallest, list.reduce((a, p) => a + POS + (hoursFor(p, k) ? HRS : 0), 0));
+    }
+    return Math.max(tallest, 70) + PADV * 2;
+  });
+  let logo = null;
+  if (state.logo) { logo = new Image(); logo.src = state.logo; try { await logo.decode(); } catch (e) { logo = null; } }
+  const H = Math.round(M + HEAD + DAYH + rowH.reduce((a, b) => a + b, 0) + FOOT + M / 2);
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.direction = 'rtl'; g.textBaseline = 'middle';
+  g.fillStyle = C.bg; g.fillRect(0, 0, W, H);
+
+  // header: logo, store, week, status
+  const hy = M, hh = HEAD - 28, cy = hy + hh / 2;
+  if (C.rule) { g.fillStyle = C.accent; g.fillRect(M, hy + hh - 4, W - 2 * M, 4); }
+  else { g.fillStyle = C.band; rrect(g, M, hy, W - 2 * M, hh, 28); g.fill(); }
+  let xr = W - M - 36;
+  if (logo && logo.naturalWidth) {
+    const lh = 104, lw = Math.min(280, logo.naturalWidth * lh / logo.naturalHeight);
+    if (C.plate) { g.fillStyle = '#FFFFFF'; rrect(g, xr - lw - 14, cy - lh / 2 - 12, lw + 28, lh + 24, 18); g.fill(); xr -= 14; }
+    g.drawImage(logo, xr - lw, cy - lh / 2, lw, lh);
+    xr -= lw + (C.plate ? 50 : 36);
+  }
+  const status = opt.draft ? [{ text: 'טיוטה', font: '700 30px ' + F_BODY, color: C.draft, gap: 0 }]
+    : opt.published ? [{ text: 'פורסם', font: '600 26px ' + F_BODY, color: C.bandInk }, { text: dm(new Date(opt.published)), ltr: true, font: '600 26px ' + F_BODY, color: C.bandInk, gap: 0 }] : [];
+  const sw = status.length ? runsWidth(g, status) + 44 : 0;
+  g.font = '400 66px ' + F_DISP; g.fillStyle = C.title; g.textAlign = 'right';
+  g.fillText(fitText(g, state.store.name || 'סידור עבודה', xr - M - 60 - sw), xr, cy - 26);
+  drawRuns(g, [{ text: 'סידור עבודה · שבוע', font: '600 30px ' + F_BODY, color: C.bandInk },
+    { text: weekLabel(wk) + '.' + end.getFullYear(), ltr: true, font: '600 30px ' + F_BODY, color: C.bandInk }], xr, cy + 40);
+  if (status.length) {
+    const bx = M + 30, bw = sw;
+    if (opt.draft) { g.fillStyle = C.draftBg; rrect(g, bx, cy - 30, bw, 60, 30); g.fill(); }
+    drawRuns(g, status, bx + bw - 22, cy);
+  }
+
+  // day header row
+  const y0 = M + HEAD, gx = M, gw = W - 2 * M;
+  g.fillStyle = C.dayBg; rrect(g, gx, y0, gw - LW - 8, DAYH - 10, 18); g.fill();
+  for (let d = 0; d < 7; d++) {
+    const xR = W - M - LW - d * DW - 20, date = addDays(start, d);
+    drawRuns(g, [{ text: DAYS[d], font: '400 36px ' + F_DISP, color: C.dayInk }, { text: dm(date), ltr: true, font: '600 26px ' + F_BODY, color: C.dayInk }], xR, y0 + (DAYH - 10) / 2);
+  }
+
+  // shift rows
+  let y = y0 + DAYH;
+  state.shifts.forEach((sh, si) => {
+    const h = rowH[si];
+    g.fillStyle = C.panel; g.fillRect(gx, y, gw, h);
+    g.strokeStyle = C.line; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(gx, y + h); g.lineTo(gx + gw, y + h); g.stroke();
+    g.font = '400 34px ' + F_DISP; g.fillStyle = C.ink; g.textAlign = 'right';
+    g.fillText(fitText(g, sh.name, LW - 30), W - M - 16, y + PADV + 22);
+    g.direction = 'ltr'; g.font = '600 24px ' + F_BODY; g.fillStyle = C.ink3;
+    g.fillText(sh.start + '–' + sh.end, W - M - 16, y + PADV + 62);
+    g.direction = 'rtl';
+    for (let d = 0; d < 7; d++) {
+      const xR = W - M - LW - d * DW, k = sk(d, sh.id), list = slots[k] || [];
+      g.strokeStyle = C.line; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(xR, y); g.lineTo(xR, y + h); g.stroke();
+      if (!list.length) {
+        g.font = '600 26px ' + F_BODY; g.fillStyle = C.ink3; g.textAlign = 'right';
+        g.fillText(state.closed[k] ? 'סגור' : '—', xR - 18, y + PADV + 26);
+        continue;
+      }
+      let py = y + PADV;
+      for (const p of list) {
+        const role = roleById(p.role), e = p.emp ? empById(p.emp) : null, hrs = hoursFor(p, k);
+        g.font = (print ? '700 ' : '600 ') + '22px ' + F_BODY; g.textAlign = 'right';
+        const rn = fitText(g, (role ? role.name : '') + (print ? ':' : ''), DW - 56), tw = g.measureText(rn).width;
+        if (!print && role) { g.fillStyle = C.hl(role.color); rrect(g, xR - 18 - tw - 20, py + 2, tw + 20, 32, 9); g.fill(); }
+        g.fillStyle = C.chipInk; g.fillText(rn, xR - 28 - (print ? -10 : 0), py + 19);
+        const me = opt.me && p.emp === opt.me;
+        if (!p.emp) {
+          if (!print) { g.fillStyle = C.missBg; rrect(g, xR - DW + 12, py + 38, DW - 30, 36, 8); g.fill(); }
+          g.font = '700 26px ' + F_BODY; g.fillStyle = C.miss; g.fillText('חסר שיבוץ', xR - 22, py + 57);
+        } else {
+          g.font = (me ? '700 ' : '600 ') + '28px ' + F_BODY; g.fillStyle = me ? C.accent : C.ink;
+          g.fillText(fitText(g, e ? e.name : 'עובד/ת שנמחק/ה', DW - 40), xR - 18, py + 57);
+          if (me) { g.fillStyle = C.accent; g.fillRect(xR - 8, py + 40, 4, 34); }
+        }
+        if (hrs) { g.direction = 'ltr'; g.font = '600 22px ' + F_BODY; g.fillStyle = C.ink3; g.fillText(fitText(g, hrs, DW - 40), xR - 18, py + 92); g.direction = 'rtl'; }
+        py += POS + (hrs ? HRS : 0);
+      }
+    }
+    y += h;
+  });
+  g.strokeStyle = C.line; g.lineWidth = 2; g.strokeRect(gx, y0 + DAYH, gw, y - y0 - DAYH);
+
+  // footer
+  const now = new Date();
+  g.textAlign = 'left'; g.direction = 'ltr'; g.font = '600 22px ' + F_BODY; g.fillStyle = C.ink3;
+  g.fillText(dm(now) + '.' + now.getFullYear(), M, y + FOOT / 2 + 6);
+  g.textAlign = 'right'; g.direction = 'rtl';
+  g.fillText('הופק בסדרן', W - M, y + FOOT / 2 + 6);
+  return cv;
+}
+// A one-page PDF around a JPEG, fitted to A4 in the image's orientation.
+function pdfFromJpeg(jpeg, w, h, title) {
+  const land = w >= h, PW = land ? 842 : 595, PH = land ? 595 : 842, m = 24;
+  const sc = Math.min((PW - 2 * m) / w, (PH - 2 * m) / h), dw = w * sc, dh = h * sc;
+  const te = new TextEncoder(), parts = [], offs = [];
+  let len = 0;
+  const add = x => { const b = typeof x === 'string' ? te.encode(x) : x; parts.push(b); len += b.length; };
+  const obj = (n, dict, stream) => {
+    offs[n] = len;
+    add(n + ' 0 obj\n' + dict);
+    if (stream) { add('\nstream\n'); add(stream); add('\nendstream'); }
+    add('\nendobj\n');
+  };
+  const utf16 = str => '<FEFF' + Array.from(str).map(ch => {
+    const cp = ch.codePointAt(0);
+    if (cp < 0x10000) return cp.toString(16).padStart(4, '0');
+    const v = cp - 0x10000;
+    return (0xd800 + (v >> 10)).toString(16) + (0xdc00 + (v & 0x3ff)).toString(16);
+  }).join('').toUpperCase() + '>';
+  const draw = te.encode('q ' + [dw, 0, 0, dh, (PW - dw) / 2, (PH - dh) / 2].map(v => +v.toFixed(2)).join(' ') + ' cm /Im0 Do Q');
+  add(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>');
+  obj(4, '<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>', jpeg);
+  obj(5, '<< /Length ' + draw.length + ' >>', draw);
+  obj(6, '<< /Title ' + utf16(title) + ' /Creator (Sadran) /Producer (Sadran) >>');
+  const xref = len;
+  add('xref\n0 7\n0000000000 65535 f \n' + [1, 2, 3, 4, 5, 6].map(n => String(offs[n]).padStart(10, '0') + ' 00000 n \n').join(''));
+  add('trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  const out = new Uint8Array(len);
+  let o = 0;
+  for (const part of parts) { out.set(part, o); o += part.length; }
+  return out;
+}
+const canShareFiles = (() => {
+  try { return !inViewer && !!navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(1)], 'x.jpg', { type: 'image/jpeg' })] }); } catch (e) { return false; }
+})();
+async function openExport(wk, slots, opt, from) {
+  const s = { type: 'export', wk, fmt: 'pdf', style: state.exportStyle || 'color', mgr: !!opt.mgr, draft: !!opt.draft, url: '', blobs: null, fail: false, canShare: canShareFiles };
+  openSheet(s, from);
+  try {
+    const cv = await drawRoster(wk, slots, s.style, opt);
+    const jpg = await new Promise((ok, bad) => cv.toBlob(b => (b ? ok(b) : bad(new Error('jpeg'))), 'image/jpeg', .92));
+    const title = (state.store.name ? state.store.name + ' · ' : '') + 'סידור עבודה ' + weekLabel(wk);
+    const pdf = new Blob([pdfFromJpeg(new Uint8Array(await jpg.arrayBuffer()), cv.width, cv.height, title)], { type: 'application/pdf' });
+    s.blobs = { jpg, pdf };
+    s.url = cv.toDataURL('image/jpeg', .8);
+  } catch (e) { s.fail = true; }
+  if (ui.sheet === s) renderSheet(false);
+}
+// The small preview in the settings, redrawn only when something it shows has changed.
+let previewTimer = null;
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    if (ui.view !== 'setup' || !document.getElementById('xPrev')) return;
+    const wk = ui.week, w = syncWeek(wk);
+    const key = canon({ s: state.exportStyle, t: state.theme, l: state.logoVer || (state.logo || '').length, n: state.store.name, sh: state.shifts, r: state.roles, c: state.closed, w: w.slots, wk });
+    if (key === ui.xprev.key) return;
+    try {
+      const cv = await drawRoster(wk, w.slots, state.exportStyle || 'color', { published: w.published && w.published.at });
+      const sm = document.createElement('canvas');
+      sm.width = 800; sm.height = Math.round(cv.height * 800 / cv.width);
+      sm.getContext('2d').drawImage(cv, 0, 0, sm.width, sm.height);
+      ui.xprev = { key, url: sm.toDataURL('image/jpeg', .85) };
+      const el = document.getElementById('xPrev');
+      if (el && el.tagName === 'IMG') el.src = ui.xprev.url;
+      else if (el) el.outerHTML = '<img class="xprev" id="xPrev" alt="תצוגה מקדימה של הסידור בעיצוב שנבחר" src="' + ui.xprev.url + '">';
+    } catch (e) { /* the preview stays as it was */ }
+  }, 250);
 }
 
 /* ---------- rendering ---------- */
@@ -2298,8 +3049,11 @@ function render() {
     s = state.prefs.session = null;
   }
   const gate = REMOTE ? (net.phase === 'ready' ? null : net.phase) : (s ? null : 'signin');
-  const main = $('#view');
+  const main = $('#view'), logoEl = $('#brandLogo');
+  applyTheme();
   $('#storeName').textContent = state.store.name;
+  if (state.logo) { if (logoEl.getAttribute('src') !== state.logo) logoEl.src = state.logo; logoEl.hidden = false; $('#brandMark').hidden = true; }
+  else { logoEl.hidden = true; logoEl.removeAttribute('src'); $('#brandMark').hidden = false; }
   $('#tabsBottom').hidden = !!gate;
   if (gate) {
     ui.sheet = null;
@@ -2323,6 +3077,7 @@ function render() {
   renderSheet(false);
   save();
   paintSync();
+  if (!gate && ui.view === 'setup') schedulePreview();
   if (active) { const el = document.getElementById(active); if (el && el !== document.activeElement) el.focus({ preventScroll: true }); }
 }
 function openSheet(s, from) {
@@ -2332,6 +3087,7 @@ function openSheet(s, from) {
   renderSheet(true);
 }
 function closeSheet() {
+  if (ui.sheet && ui.sheet.back) { ui.sheet = ui.sheet.back; renderSheet(false); return; }
   const from = ui.sheet && ui.sheet.from;
   ui.sheet = null;
   renderSheet(false);
@@ -2343,7 +3099,8 @@ function toast(html, undo) {
   const r = $('#toastRoot');
   r.innerHTML = '<div class="toast" role="status"><span>' + html + '</span>' + (undo ? '<button type="button" class="toast-b" data-act="undo">' + icon('undo') + 'ביטול</button>' : '') + '</div>';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { r.innerHTML = ''; }, undo ? 8000 : 3400);
+  const words = String(html).replace(/<[^>]*>/g, '').length;
+  toastTimer = setTimeout(() => { r.innerHTML = ''; }, undo ? 8000 : Math.min(9000, Math.max(3400, words * 70)));
 }
 function go(view) {
   ui.view = view;
@@ -2439,6 +3196,8 @@ const actions = {
     if (REMOTE) {
       const t = net.token;
       if (pending()) { flushAll(false); await waitIdle(4000); }
+      await dropPushSub(t);
+      push.state = 'unknown';
       rpc('sadran_logout', { p_token: t }).catch(() => { /* the session expires on its own */ });
       endSession();
       return;
@@ -2642,9 +3401,45 @@ const actions = {
   resetOver() { const s = ui.sheet; delete state.weeks[ui.week].over[s.k]; ui.sheet = null; render(); },
 
   av(ds) {
-    const rec = availRec(ui.week, ds.emp, true);
-    const v = ((rec.slots[ds.k] || 0) + 1) % 3;
-    if (v) rec.slots[ds.k] = v; else delete rec.slots[ds.k];
+    const rec = availRec(ui.week, ds.emp, true), x = rec.slots[ds.k], t = slotT(x), v = (slotV(x) + 1) % 3;
+    if (!v) delete rec.slots[ds.k];
+    else rec.slots[ds.k] = t ? { v, t } : v;
+    render();
+  },
+  avTime(ds, el) {
+    const rec = availRec(ui.week, ds.emp), x = rec && rec.slots[ds.k], sh = shiftById(unsk(ds.k)[1]);
+    if (!sh) return;
+    const r = slotRanges(x, sh), back = ui.sheet && ui.sheet.type === 'avail' ? ui.sheet : null;
+    openSheet({ type: 'times', emp: ds.emp, k: ds.k, v: slotV(x) === 2 ? 2 : 1, had: !!r, ranges: r ? r.map(q => q.slice()) : [[sh.start, sh.end]], err: '', back }, el.id);
+  },
+  trAdd() { const s = ui.sheet; s.ranges.push(['', shiftById(unsk(s.k)[1]).end]); render(); const el = document.getElementById('tr-1-0'); if (el) el.focus(); },
+  trDel(ds) { ui.sheet.ranges.splice(+ds.i, 1); render(); },
+  trV(ds) { ui.sheet.v = +ds.v; render(); },
+  trFull() {
+    const s = ui.sheet, rec = availRec(ui.week, s.emp, true);
+    rec.slots[s.k] = s.v;
+    ui.sheet = s.back || null;
+    render();
+  },
+  trSave() {
+    const s = ui.sheet, sh = shiftById(unsk(s.k)[1]);
+    const s0 = mins(sh.start), e0 = mins(sh.end) > s0 ? mins(sh.end) : mins(sh.end) + 1440;
+    const at = t => { const v = mins(t); return v < s0 ? v + 1440 : v; };
+    const list = [];
+    s.err = '';
+    for (const r of s.ranges) {
+      if (!r[0] || !r[1]) { s.err = 'צריך למלא שעת התחלה ושעת סיום.'; break; }
+      const a = at(r[0]), b = r[1] === sh.end ? e0 : at(r[1]);
+      if (a < s0 || b > e0 || a >= b) { s.err = 'השעות צריכות להיות בתוך המשמרת (' + ltr(sh.start + '–' + sh.end) + '), וההתחלה לפני הסיום.'; break; }
+      list.push({ a, b, r });
+    }
+    list.sort((x, y) => x.a - y.a);
+    if (!s.err && list.length === 2 && list[1].a < list[0].b) s.err = 'שני הטווחים חופפים. אפשר לאחד אותם לטווח אחד.';
+    if (s.err) { render(); return; }
+    const rec = availRec(ui.week, s.emp, true);
+    rec.slots[s.k] = list.length === 1 && list[0].a === s0 && list[0].b === e0 ? s.v
+      : { v: s.v, t: list.map(q => [q.a === s0 ? null : q.r[0], q.b === e0 ? null : q.r[1]]) };
+    ui.sheet = s.back || null;
     render();
   },
   avFill(ds) {
@@ -2737,7 +3532,98 @@ const actions = {
     const inp = document.getElementById('role-' + r.id);
     if (inp) { inp.focus(); inp.select(); }
   },
-  roleColor(ds) { const r = roleById(ds.id); r.color = r.color % COLORS + 1; render(); },
+  roleColor(ds, el) { openSheet({ type: 'color', id: ds.id }, el.id); },
+  roleColorSet(ds) { const r = roleById(ui.sheet.id); if (r) r.color = +ds.c; closeSheet(); render(); },
+  themeSet(ds) { state.theme = { preset: ds.p, custom: (state.theme || {}).custom }; render(); },
+  appearance() {
+    const order = ['system', 'light', 'dark'], next = order[(order.indexOf(getAppearance()) + 1) % 3];
+    try { localStorage.setItem(APPEAR_KEY, next); } catch (e) { /* lasts until the page reloads */ }
+    applyAppearance();
+    toast('מראה במכשיר הזה: ' + APPEAR[next][1] + '.');
+  },
+  logoPick() { const inp = $('#logoFile'); inp.value = ''; inp.click(); },
+  logoDel() { setLogo(null); },
+  xStyle(ds) { state.exportStyle = ds.s; render(); },
+  exportRoster() {
+    const wk = ui.week, w = state.weeks[wk], pub = w.published, dirty = !pub || sig(pub.slots) !== sig(w.slots);
+    openExport(wk, w.slots, { mgr: true, draft: dirty, published: !dirty && pub.at }, 'btnMore');
+  },
+  exportMine() {
+    const wk = ui.week, pub = state.weeks[wk].published, me = currentMe();
+    if (pub && me) openExport(wk, pub.slots, { me: me.id, published: pub.at }, 'btnExportMine');
+  },
+  xFmt(ds) { ui.sheet.fmt = ds.f; render(); },
+  xSave() {
+    const s = ui.sheet;
+    if (!s || !s.blobs) return;
+    saveFile('sadran-' + s.wk + '.' + s.fmt, s.blobs[s.fmt]);
+  },
+  xShare() {
+    const s = ui.sheet;
+    if (!s || !s.blobs) return;
+    const name = 'sadran-' + s.wk + '.' + s.fmt, file = new File([s.blobs[s.fmt]], name, { type: s.fmt === 'pdf' ? 'application/pdf' : 'image/jpeg' });
+    navigator.share({ files: [file], title: 'סידור עבודה ' + weekLabel(s.wk) }).catch(err => {
+      if (!err || err.name !== 'AbortError') toast('השיתוף לא הצליח. אפשר להוריד את הקובץ ולשלוח אותו.');
+    });
+  },
+  async pushOn() {
+    if (push.busy || !pushSupported()) return;
+    push.busy = true;
+    const ask = Notification.requestPermission();
+    render();
+    let msg = '';
+    try {
+      const perm = await ask;
+      if (perm === 'granted') {
+        const reg = await swRegistration();
+        await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(VAPID_PUBLIC) });
+        const out = await savePushSub(sub);
+        msg = out && out.ok ? 'ההתראות הופעלו במכשיר הזה.' : 'הדפדפן הזה לא נתמך לתזכורות.';
+      } else if (perm === 'denied') msg = 'ההתראות נחסמו. אפשר לאשר אותן בהגדרות האתר בדפדפן.';
+    } catch (err) {
+      if (err && err.code === 'auth') { push.busy = false; endSession('expired'); return; }
+      msg = err && err.code === 'network' ? NET_ERR : 'לא הצלחתי להפעיל התראות בדפדפן הזה.';
+    }
+    push.busy = false;
+    push.state = await readPushState();
+    render();
+    if (msg) toast(msg);
+  },
+  async pushOff() {
+    if (push.busy) return;
+    push.busy = true;
+    render();
+    await dropPushSub(net.token);
+    push.busy = false;
+    push.state = await readPushState();
+    render();
+    toast('ההתראות כובו במכשיר הזה.');
+  },
+  async remindNow() {
+    if (net.busy) return;
+    net.busy = true;
+    render();
+    let d = null, msg = '';
+    try { d = await callRemind(ui.week); }
+    catch (err) {
+      net.busy = false;
+      if (err.code === 'auth') { endSession('expired'); return; }
+      msg = err.code === 'network' ? NET_ERR : 'שליחת ההתראה לא הצליחה. אפשר לנסות שוב בעוד רגע.';
+    }
+    net.busy = false;
+    render();
+    if (d) {
+      if (!d.pending) msg = 'כל הצוות כבר הגיש זמינות לשבוע הזה.';
+      else {
+        const names = a => a.map(esc).join(', ');
+        msg = (d.reached.length ? (d.sent ? 'נשלחה התראה ל' + names(d.reached) + '.' : 'לא הצלחתי להגיע למכשירים של ' + names(d.reached) + '.') : '') +
+          (d.unreachable.length ? ' ' + names(d.unreachable) + (d.unreachable.length === 1 ? ' לא הפעיל/ה התראות' : ' לא הפעילו התראות') + ', אפשר לשלוח להם את הודעת התזכורת.' : '');
+      }
+    }
+    toast(msg.trim());
+  },
   roleDel(ds) {
     state.roles = state.roles.filter(r => r.id !== ds.id);
     state.employees.forEach(e => { e.roles = e.roles.filter(r => r !== ds.id); });
@@ -2804,6 +3690,9 @@ document.addEventListener('input', e => {
   if (b.slice(0, 3) === 'si.') { ui.signin[b.slice(3)] = v; return; }
   if (b.slice(0, 3) === 'su.') { ui.setup[b.slice(3)] = v; return; }
   if (b === 'code.draft') { ui.codeDraft = v; return; }
+  if (b === 'theme.custom') { state.theme = { preset: 'custom', custom: v }; applyTheme(); save(); return; }
+  if (b.slice(0, 3) === 'tr.') { const q = b.split('.'); if (ui.sheet && ui.sheet.ranges) ui.sheet.ranges[+q[1]][+q[2]] = v; return; }
+  if (b.slice(0, 3) === 'dl.') return;
   if (b === 'draft.name' || b === 'draft.number') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft[b.slice(6)] = v; return; }
   if (b === 'store.name') { state.store.name = v; $('#storeName').textContent = v; }
   else if (b === 'role.name') { roleById(id).name = v; paint('data-rn', v || 'ללא שם'); }
@@ -2815,7 +3704,18 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'xlsxFile') { if (t.files && t.files[0]) importFile(t.files[0]); return; }
-  if (t.dataset && t.dataset.bind === 'imp.remove' && ui.sheet) { ui.sheet.remove = t.checked; render(); }
+  if (t.id === 'logoFile') { if (t.files && t.files[0]) uploadLogo(t.files[0]); return; }
+  const b = t.dataset && t.dataset.bind;
+  if (b === 'imp.remove' && ui.sheet) { ui.sheet.remove = t.checked; render(); return; }
+  if (b === 'theme.custom') { render(); return; }
+  if (b && b.slice(0, 3) === 'dl.') {
+    const dl = state.rules.deadline || (state.rules.deadline = DEF_DEADLINE());
+    if (b === 'dl.on') dl.on = t.checked;
+    else if (b === 'dl.day') dl.day = +t.value;
+    else if (b === 'dl.time' && t.value) dl.time = t.value;
+    dl.tz = tzNow();
+    render();
+  }
 });
 document.addEventListener('toggle', e => {
   const f = e.target.dataset && e.target.dataset.fold;
@@ -2828,7 +3728,18 @@ window.addEventListener('hashchange', () => {
 });
 
 /* ---------- boot ---------- */
+function installAppMeta() {
+  const add = (tag, attrs) => { const el = document.createElement(tag); for (const k in attrs) el.setAttribute(k, attrs[k]); document.head.appendChild(el); };
+  add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
+  add('link', { rel: 'icon', type: 'image/png', href: 'icon-192.png' });
+  add('link', { rel: 'apple-touch-icon', href: 'icon-192.png' });
+  add('meta', { name: 'apple-mobile-web-app-capable', content: 'yes' });
+  add('meta', { name: 'apple-mobile-web-app-title', content: 'סדרן' });
+}
+applyAppearance();
 if (REMOTE) {
+  installAppMeta();
+  swRegistration().catch(() => { /* notifications stay off on this browser */ });
   setInterval(() => { if (document.visibilityState === 'visible') refresh(false); }, 30000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(false); else flushAll(true); });
   window.addEventListener('pagehide', () => flushAll(true));

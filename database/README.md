@@ -1,20 +1,24 @@
-# Sadran: data and hosting
+# Sadran: data, reminders and hosting
 
-Sadran (`site/index.html`) is the weekly shift scheduler. This folder holds what it needs around the page itself: the database definition and the Excel layout for the employee list.
+Sadran (`site/`) is the weekly shift scheduler. This folder holds what it needs around the page itself: the database definition, the reminder schedule and the Excel layout for the employee list.
 
 | File | What it is |
 |---|---|
 | `schema.sql` | The database: tables, sign-in checks and the functions the site calls. Safe to run again. |
+| `reminders.sql` | Runs the availability reminders every 10 minutes (pg_cron). Run after `schema.sql`. |
 | `employees-template.xlsx` | The layout for the employee list (name and personal number), for import in the app. |
+| `../supabase/functions/sadran-remind/` | The Edge Function that sends the reminders as browser notifications. |
 
 ## How it fits together
 
 ```
-phone / computer ──► site/index.html ──► Supabase project (xdjeijflnutqoxzzodqh)
-                     (any static host)    private "sadran" schema + sadran_* functions
+phone / computer ──► site/ (static host) ──► Supabase project (xdjeijflnutqoxzzodqh)
+       ▲                                       private "sadran" schema + sadran_* functions
+       │                                              │
+       └──── browser push service ◄── sadran-remind ◄─┘ every 10 minutes (pg_cron + pg_net)
 ```
 
-- The site is one HTML file with no build step. It talks to Supabase with the project's **publishable key**, which is written into the page. That key is meant to be public: it can only call the `sadran_*` functions.
+- The site has no build step: `index.html` plus `sw.js` (shows notifications), `manifest.webmanifest` and icons (so it can be added to a phone's home screen). It talks to Supabase with the project's **publishable key**, which is written into the page. That key is meant to be public: it can only call the `sadran_*` functions.
 - Every function checks a sign-in before it reads or writes anything:
   - **Employees** sign in with their name and personal number. They see their own availability, their teammates' names and published rosters. They can change only their own availability.
   - **The manager** signs in with the manager code. The manager sees and changes everything.
@@ -22,14 +26,48 @@ phone / computer ──► site/index.html ──► Supabase project (xdjeijfln
 - The manager code is stored only as a bcrypt hash. Ten wrong attempts on one name, or on the manager code, block further attempts for 15 minutes.
 - Changes are saved automatically about a second after the last edit. Other devices pick them up within about 30 seconds, or right away when the page is opened or brought back to the front. If the connection drops, the header shows "לא נשמר" and the change is sent when it returns.
 
-Inside the Claude viewer, pages cannot reach outside services, so the same file runs there as a one-device demo with example data, saved in that browser only.
+Inside the Claude viewer, pages cannot reach outside services, so the same file runs there as a one-device demo with example data, saved in that browser only. Notifications do not run there.
+
+## What the manager can set (הגדרות)
+
+- **Store**: name and logo. The logo is resized in the browser to at most 360 px and stored in the database; each device keeps a copy and downloads it again only when it changes.
+- **Colour theme** for everyone: seven presets or any colour. The site derives the rest from it and keeps text readable in light and dark. Each person can also switch their own device between light, dark and the device setting with the button at the top of the screen.
+- **Role colours**: 12 highlight colours.
+- **Export style** for the roster as PDF or JPEG: colourful, light, dark, or print (black on white). Both the manager (any week, marked "טיוטה" if not published as shown) and employees (published weeks) can save the roster as a file.
+- **Availability deadline**: a day and time in the week before. Employees see it on their availability screen.
+
+Employees can mark a shift as possible or preferred, and with the clock button, limit it to specific hours: up to two ranges inside the shift, for example 11:30–13:50, or 16:30 to the end of the shift. A range that ends at the shift's end follows the shift if its hours change. Automatic scheduling does not place someone in a shift they can only partly cover; the manager can, and the roster then shows their hours.
+
+## Reminders
+
+When the deadline for next week has passed, everyone who has not submitted availability and has turned notifications on gets a browser notification, once per week. The manager's devices with notifications on get a list of who has not submitted. In **זמינות**, **שליחת התראה** sends a reminder right away, and says who could not be reached.
+
+- Employees turn notifications on at the bottom of their availability screen; the manager at the deadline card in the settings. Signing out turns them off on that device.
+- **iPhone and iPad**: notifications work only when the site was added to the home screen (Safari: Share, Add to Home Screen) and is opened from there. The site explains this on those devices.
+- Android, and desktop Chrome, Edge and Firefox, work in the browser.
+
+How it is wired:
+
+1. `sadran.reminders_due()` works out next week's deadline in the store's time zone (saved with the deadline setting), and returns one message per device, recording each reminder so it goes out once.
+2. `supabase/functions/sadran-remind` signs each message with the app's VAPID key, encrypts it for the device (RFC 8291) and posts it to the device's push service. Devices that report they are gone are removed.
+3. `reminders.sql` schedules the function every 10 minutes.
+
+The function connects with `SUPABASE_DB_URL` (provided by Supabase) and needs two secrets: `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_JWK`. The public key is also in `site/index.html` (`VAPID_PUBLIC`). Only the push services' own addresses (Google, Mozilla, Apple, Microsoft) are accepted as devices.
+
+To replace the key pair: generate a new P-256 key pair, set both secrets, put the new public key in `site/index.html`, and redeploy. Everyone then turns notifications on again.
+
+Deploy the function with the Supabase CLI:
+
+```
+supabase functions deploy sadran-remind --no-verify-jwt
+```
 
 ## First run
 
 1. Open the hosted site. A new database opens on **הגדרה ראשונה**: choose the manager code (6 to 12 digits).
 2. In **צוות**, import the employee list from Excel (**ייבוא מאקסל**) or add people one by one.
-3. Check the roles, shifts and staffing in **הגדרות**.
-4. Send the link to the team. Each person signs in with their name and personal number.
+3. In **הגדרות**, add the logo, choose the colours and the export style, check the roles, shifts and staffing, and set the availability deadline.
+4. Send the link to the team. Each person signs in with their name and personal number, and can turn on notifications.
 
 The first-run screen is open to whoever reaches the site first, so do step 1 before sharing the link.
 
@@ -46,7 +84,7 @@ Row 2 of the template is an example. Any row whose name contains "דוגמה" is
 
 ## Hosting
 
-Any static host works. Publish the `site/` folder; there is nothing to build.
+Any static host with HTTPS works. Publish the `site/` folder; there is nothing to build. HTTPS is needed for notifications.
 
 - **Netlify**: create a site from this repository. `netlify.toml` already tells it to publish `site/`, and every push to `main` updates the site.
 - **GitHub Pages**: needs a public repository, or a paid GitHub plan for a private one.
