@@ -37,19 +37,27 @@ After filling them in, read each page once on the site. Nothing yellow should re
 
 Each item says what the draft does today, so the lawyer can confirm it or change it.
 
+Section and regulation numbers are given as pointers. They were checked in November 2026 against published summaries and law-firm updates, not against the official text, so the lawyer should verify each one.
+
 ### Privacy (Protection of Privacy Law, 5741-1981, as amended by Amendment 13)
 
-**2.1 The privacy policy as a whole** (`privacy.md`). It is written as the notice given when personal data is collected (section 11 of the law): who holds the data and how to reach them, what is collected and why, that giving it is voluntary and what happens without it, who receives it, and the rights to see and correct it. Please confirm it meets the notice requirements as they stand after Amendment 13, and that the description of rights in §11 of the policy is complete.
+**2.1 The privacy policy as a whole** (`privacy.md`). It is written as the notice given when personal data is collected (section 11 of the law): who holds the data and how to reach them, what is collected and why, that giving it is voluntary and what happens without it, who receives it, and the rights to see and correct it. Please confirm it meets the notice requirements as they stand after Amendment 13 (in force since 14 August 2025), and that the description of rights in §11 of the policy is complete.
+
+As understood, the amended section 11 requires the notice to say: whether giving the data is a legal duty or voluntary, and what happens on refusal (policy §4); the purpose (§5); the name and contact details of whoever controls the database (§1); who receives the data and why (§6, §7); and the rights of access and correction under sections 13 and 14 (§11).
 
 **2.2 The basis for processing employees' data.** Employees are asked to tick "קראתי ואני מסכים/ה" on their first sign-in, and the answer is recorded. Consent given by an employee to an employer may carry little weight, because the employee is not free to refuse. Please advise whether the store should rely on consent, on notice and legitimate management needs, or on both, and whether the wording of the box and of privacy §4 ("האם חובה למסור את המידע") should change. Terms §5 puts on the manager the duty to tell employees before adding them; confirm that is enough.
 
 **2.3 Data stored outside Israel.** The database is hosted by Supabase in **Tokyo, Japan**. Supabase has no region in Israel, so the data is abroad whatever region is chosen. Privacy §7 and §8 say so. Please confirm that the transfer meets the Privacy Protection (Transfer of Data to Databases Abroad) Regulations, 5761-2001, which destination is preferable, and whether a written undertaking from the provider (its data processing agreement) must be signed and kept. See also section 3.
+
+Pointers: regulation 2(8) allows a transfer to a country that is party to Convention 108 (EU member states) or that receives data from EU member states on the same terms (countries with an EU adequacy decision, which Japan has; no statement by the Authority about Japan specifically was found). Regulation 3 requires a written undertaking from the recipient to protect the data and not to pass it on.
 
 **2.4 How long data is kept.** The site deletes failed sign-in attempts after a day, reminder records after 90 days, and everything about an employee when the manager removes them. It does **not** delete old rosters or availability by itself. Privacy §10 states a period (`RETENTION_PERIOD`): whatever is written there has to be true. Please advise on a period, taking into account how long an employer should keep scheduling records, and the duty not to keep more data than needed. Automatic deletion after a set period can be added to the site on request.
 
 **2.5 Employees under 18.** Stores often employ teenagers. Please advise what `MINORS_POLICY` should say, and whether a parent's consent is needed before a minor's details are entered or before the minor agrees to the terms.
 
 **2.6 Registration, officer and security duties.** Please confirm that a store of this size does not have to register the database or appoint a privacy protection officer, and say which security level of the Privacy Protection (Data Security) Regulations, 5777-2017 applies and which documents it requires (for example a database definition document and a security procedure). The technical measures in place are listed in section 5.
+
+Pointers: after Amendment 13, registration (section 8א) and a privacy protection officer (section 17ב1) appear to apply to public bodies, data brokers and large-scale processing of especially sensitive data, none of which describes this store. Under the security regulations the likely level is basic (or "managed by an individual" if at most the owner and two others have access). Basic-level duties include a database definition document, a security procedure, access permissions, an incident log, and a written agreement with outside processors such as the cloud provider (regulation 15).
 
 **2.7 Free-text notes.** Employees can write a note to the manager with their availability. The site asks them, next to the field and in both documents, not to write sensitive information such as medical details. Confirm that is sufficient.
 
@@ -63,6 +71,8 @@ Who the "site operator" is should also be confirmed: the draft assumes the store
 
 **2.9 Whether the service-accessibility rules apply, and the statement.** The site is used by the store's own manager and employees, not by the public. Please confirm whether the Equal Rights for Persons with Disabilities (Service Accessibility Adjustments) Regulations, 5773-2013 (regulation 35, Israeli Standard 5568) apply to it, or only the duty to accommodate employees, and whether any small-business exemption is relevant. The statement is written to be accurate either way: it says the business *works to* meet the standard at level AA, lists what was done and the known limits, and gives a contact.
 
+Pointers: regulations 35 and 35א (SI 5568 at level AA; the current edition of the standard still adopts WCAG 2.0), 35ה (what the statement must contain) and 35ו (exemptions: an exempt dealer, or average yearly turnover up to NIS 100,000; the higher tiers are conditional and published sources disagree about them). No official statement was found on whether a staff-only tool counts as a service to the public.
+
 What was checked, and what was not, so `ACCESSIBILITY_AUDIT` can be written truthfully:
 
 - Checked automatically (axe-core 4.14, rules for WCAG 2.0, 2.1 and 2.2 at levels A and AA): every screen and dialog, in light and dark, on phone and desktop widths, under all seven colour themes and two custom colours. No violations remain.
@@ -70,11 +80,11 @@ What was checked, and what was not, so `ACCESSIBILITY_AUDIT` can be written trut
 - **Not checked:** use by a person with a screen reader (NVDA, JAWS, VoiceOver, TalkBack), voice control, or screen magnification. Automated tools find only part of the problems. An accessibility consultant (מורשה נגישות שירות) should test the site before the statement claims conformance.
 - Known limits, already listed in the statement: the PDF and JPEG exports of the roster are images; the team availability table is dense on small screens; notifications depend on the browser.
 
-**2.10 The contact person.** Confirm whether the store must name a formal accessibility coordinator (רכז נגישות) or may name any contact person, and what response time to promise.
+**2.10 The contact person.** Confirm whether the store must name a formal accessibility coordinator (רכז נגישות) or may name any contact person, and what response time to promise. As understood, a coordinator is mandatory only for a business with 25 or more employees.
 
 ### Cookies (`cookies.md`)
 
-**2.11** The site sets no cookies and loads nothing from third parties. It stores a few items in the browser that it needs in order to work, listed on the cookies page from `legal.json`. The notice at the bottom of the screen therefore only informs. Please confirm that an informational notice is appropriate for strictly necessary storage. If an analytics or advertising tool is ever added, the notice becomes a real choice and the tool loads only after consent (see the folder's `README.md`).
+**2.11** The site sets no cookies and loads nothing from third parties. It stores a few items in the browser that it needs in order to work, listed on the cookies page from `legal.json`. The notice at the bottom of the screen therefore only informs. Please confirm that an informational notice is appropriate for strictly necessary storage. As understood, no Israeli statute requires a cookie banner; the general notice and consent rules of the Privacy Law apply, and the Privacy Protection Authority has recommended a separate opt-in for cookies that are not essential, which is what the site does. If an analytics or advertising tool is ever added, the notice becomes a real choice and the tool loads only after consent (see the folder's `README.md`).
 
 ## 3. A decision for the owner: where the database is
 
@@ -94,7 +104,8 @@ The site sends no marketing and collects no email addresses or phone numbers. Th
 The mechanism for marketing consent is built and **switched off**: a separate box that is never ticked in advance, the answer saved with its time and source, withdrawal in the privacy settings and by an unsubscribe link (see "Marketing messages" in the folder's `README.md`). Before switching it on (`"enabled": true` for `marketing` in `legal.json`), have the lawyer confirm:
 
 - the wording of the consent sentence (`label`), and who may be asked. Today only the manager would be; offering it to employees raises the same question as item 2.2;
-- that every message will carry what section 30A requires: the word **"פרסומת"** at the start of the subject line of an email (at the start of an SMS), the sender's name, address and contact details, and a clear, simple way to refuse, which is the unsubscribe link;
+- that every message will carry what section 30A requires. As understood: an email must have the word **"פרסומת"** in its subject line, the sender's name, address and contact details, and notice of the right to refuse with a simple way to do it, which is the unsubscribe link; an SMS must carry the sender's name and contact details for refusing. The law sets damages of up to NIS 1,000 per message sent in breach, without proof of harm;
+- whether the people to be contacted gave prior explicit consent, which is what the stored record shows, or fall under the narrow exception for existing customers;
 - that the sending tool takes its recipients only from `sadran.consent_recipients('marketing')`, so a person who withdrew is never contacted again;
 - the changes needed in `privacy.md`: §3 ("מה לא נאסף") and §5 ("המידע אינו משמש לדיוור שיווקי") would no longer be true.
 

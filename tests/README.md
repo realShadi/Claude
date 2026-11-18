@@ -16,6 +16,7 @@ npm test
 | `consent.test.js` | With an analytics script and the marketing consent switched on in a copy of the registry (`variant.py`): nothing optional loads before consent, choices are kept and can be withdrawn, and the marketing opt-in is separate, unticked and recorded. |
 | `keyboard.test.js` | Keyboard-only use, visible focus, dialogs, form errors tied to fields, layout at 320 px and with wide text spacing, control sizes. |
 | `injection.test.js` | Markup and script typed into names, notes and settings, or placed in the legal files, is shown as text and never runs. |
+| `embed.test.js` | The demo inside a sandboxed frame with no storage and form submission forbidden, the strictest way a viewer might embed it: links, dialogs, the agreement and sign-in still work. |
 | `axe.test.js` | axe-core on every screen and dialog, light and dark, phone and desktop. Pass a theme as a third argument to audit another colour theme: `node axe.test.js both mobile '{"preset":"forest"}'`. |
 
 `axe.test.js` also prints items the tool could not judge by itself ("review"): text on the role highlight colours (covered by `contrast.test.js`) and the `+`/`−` buttons (named with `aria-label`).

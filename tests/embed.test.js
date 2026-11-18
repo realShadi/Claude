@@ -1,0 +1,50 @@
+// The demo inside a sandboxed frame built from a string, the strictest way a viewer might embed it:
+// no storage, an opaque origin, and an address the page may not be able to change.
+const L = require('./lib');
+const fs = require('fs'), path = require('path');
+(async () => {
+  const s = L.suite(), browser = await L.launch();
+  const html = fs.readFileSync(path.join(L.BUILD, 'page.html'), 'utf8');
+  const wrap = '<!doctype html><meta charset="utf8"><title>host</title><body style="margin:0"><iframe id="f" sandbox="allow-scripts" style="border:0;width:390px;height:844px" srcdoc="' + html.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"></iframe>';
+  fs.writeFileSync(path.join(L.BUILD, 'host.html'), wrap);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() => { window.claude = { use: async () => null }; });
+  await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+  const page = await ctx.newPage();
+  s.watch(page, 'host');
+  await page.goto('file://' + path.join(L.BUILD, 'host.html'));
+  const f = page.frameLocator('#f');
+  await f.locator('#signForm').waitFor({ timeout: 15000 });
+  s.check('the demo starts inside a sandboxed frame without storage', true);
+  await f.locator('#ckNone').click();
+  await f.locator('#siPrivacy').click();
+  await f.locator('article.legal h2').first().waitFor();
+  s.check('a legal page opens', (await f.locator('article.legal h1').textContent()) === 'מדיניות פרטיות');
+  await f.locator('article.legal a[href="#cookies"]').click();
+  await f.locator('.stored').first().waitFor();
+  s.check('links between legal pages work', true);
+  await f.locator('#legalBack').click(); await f.locator('#signForm').waitFor();
+  s.check('back returns to sign-in', true);
+  await f.locator('#demoMgr').click(); await f.locator('#agreeForm').waitFor();
+  await f.locator('#agreeForm label a[href="#terms"]').click(); await f.locator('article.legal h2').first().waitFor();
+  await f.locator('#legalBack').click(); await f.locator('#agreeForm').waitFor();
+  await f.locator('#ag-terms').check(); await f.locator('#btnAgree').click(); await f.locator('#btnOut').waitFor();
+  s.check('agreement works without storage', true);
+  await f.locator('#tabsBottom .tab[data-view="team"]').click();
+  await f.locator('#btnAddEmp').click(); await f.locator('#lnEmp').click(); await f.locator('article.legal h2').first().waitFor();
+  await f.locator('#legalBack').click(); await f.locator('#empName').waitFor();
+  s.check('a dialog survives reading the policy', true);
+  await f.locator('#sheetClose').click();
+  await f.locator('#foot a[href="#accessibility"]').click(); await f.locator('article.legal h2').first().waitFor();
+  await f.locator('#brandLink').click(); await f.locator('#btnAuto').waitFor();
+  s.check('the header name returns to the first screen', true);
+  s.check('the frame still holds the same page (links never navigated it away)', page.frames()[1].url().startsWith('about:srcdoc'), page.frames()[1].url());
+  // sign in through the form itself: typed code, Enter
+  await f.locator('#btnOut').click(); await f.locator('#signForm').waitFor();
+  await f.locator('#segMgr').click(); await f.locator('#siCode').fill('2468'); await f.locator('#siCode').press('Enter');
+  await f.locator('#btnOut').waitFor();
+  s.check('forms are sent although the frame forbids form submission', true);
+  s.errors.splice(0, s.errors.length, ...s.errors.filter(e => !/localStorage|sandboxed|SecurityError|Storage/.test(e)));
+  await browser.close();
+  process.exit(s.report() ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });

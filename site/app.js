@@ -2448,9 +2448,10 @@ function toast(html, undo) {
   toastTimer = setTimeout(() => { r.innerHTML = ''; }, undo ? 8000 : Math.min(9000, Math.max(3400, words * 70)));
 }
 // Which screen the address asks for: a legal page (open to everyone), or one of the app's views.
-function applyRoute() {
+// `forced` names the screen directly, for a host that does not let the page change its address.
+function applyRoute(forced) {
   let h = '';
-  try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
+  try { h = forced != null ? forced : decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
   const s = state.prefs.session;
   ui.legal = legalPage(h) ? h : null;
   if (ui.legal) return;
@@ -2571,7 +2572,7 @@ const actions = {
     e.preventDefault();
     const s = state.prefs.session;
     if (s && (!REMOTE || net.phase === 'ready') && !needsAgreement().length) go(s.role === 'manager' ? 'schedule' : 'my-availability');
-    else if (ui.legal) { try { location.hash = ''; } catch (err) { /* hash routing is optional */ } }
+    else if (ui.legal) routeTo('');
   },
   async agreeGo() {
     const st = ui.agree, list = agreeList();
@@ -3129,30 +3130,44 @@ const actions = {
   },
 };
 
+// Forms are sent from here, not by the browser's own submission, so they also work where the page
+// is embedded with form submission switched off.
+function sendForm(form, e) {
+  const f = form && form.dataset && form.dataset.form;
+  if (!f) return false;
+  e.preventDefault();
+  ui.confirm = null;
+  if (actions[f]) actions[f](form.dataset, form, e);
+  return true;
+}
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act]');
-  if (!t) {
-    // Links to another screen of the site are followed here, so they work the same wherever the page is hosted.
-    const a = e.target.closest('a[href^="#"]');
-    if (a && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+  const send = e.target.closest('button[type="submit"]');
+  if (send && !send.disabled && sendForm(send.form, e)) return;
+  // Links to another screen of the site are followed here, so they work the same wherever the page
+  // is hosted or embedded. This comes first: a link inside a dialog is still a link.
+  const link = e.target.closest('a[href]');
+  if (link && !link.dataset.act) {
+    const href = link.getAttribute('href');
+    if (href.charAt(0) === '#' && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
       e.preventDefault();
-      const h = a.getAttribute('href').slice(1);
-      try { if (location.hash.slice(1) !== h) location.hash = h; } catch (err) { /* hash routing is optional */ }
+      routeTo(href.slice(1));
     }
     return;
   }
+  const t = e.target.closest('[data-act]');
+  if (!t) return;
   if (t.disabled) return;
   const act = t.dataset.act;
   if (act === 'backdrop' && e.target !== t) return;
   if (act !== 'confirmAsk') ui.confirm = null;
   if (actions[act]) actions[act](t.dataset, t, e);
 });
-document.addEventListener('submit', e => {
-  const f = e.target.dataset && e.target.dataset.form;
-  if (!f) return;
-  e.preventDefault();
-  ui.confirm = null;
-  if (actions[f]) actions[f](e.target.dataset, e.target, e);
+document.addEventListener('submit', e => { sendForm(e.target, e); });
+// Enter in a field sends its form.
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (e.key !== 'Enter' || e.isComposing || !t || t.tagName !== 'INPUT' || /^(file|button|submit|reset)$/.test(t.type)) return;
+  sendForm(t.form, e);
 });
 document.addEventListener('input', e => {
   const t = e.target, b = t.dataset && t.dataset.bind;
@@ -3215,9 +3230,9 @@ document.addEventListener('keydown', e => {
   if (e.shiftKey && (at === first || at === box || !box.contains(at))) { e.preventDefault(); last.focus(); }
   else if (!e.shiftKey && (at === last || !box.contains(at))) { e.preventDefault(); first.focus(); }
 });
-window.addEventListener('hashchange', () => {
+function onRoute(forced) {
   const was = ui.legal, view = ui.view, key = focusKey(document.activeElement);
-  applyRoute();
+  applyRoute(forced);
   if (ui.legal === was && ui.view === view) return;
   let back = null;
   if (ui.legal && !was) parked = { sheet: ui.sheet, from: sheetFrom, view, y: window.scrollY, key };
@@ -3230,7 +3245,14 @@ window.addEventListener('hashchange', () => {
   // Back from a legal page: the same place, and the same dialog if one was open.
   window.scrollTo(0, back && back.view === ui.view ? back.y : 0);
   if (!(back && restoreFocus(back.key))) { const box = $('#sheetRoot .sheet') || $('#view'); box.focus({ preventScroll: true }); }
-});
+}
+window.addEventListener('hashchange', () => onRoute());
+// Go to a screen by its address. Where the address cannot change (some embeddings), go there directly.
+function routeTo(h) {
+  let before = '', now = '';
+  try { before = location.hash.slice(1); if (before !== h) location.hash = h; now = location.hash.slice(1); } catch (err) { now = before; }
+  if (now === before) onRoute(h);
+}
 window.addEventListener('resize', () => { if ($('#cookieRoot .ck')) paintCookie(); });
 
 /* ---------- boot ---------- */
