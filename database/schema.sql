@@ -10,8 +10,11 @@
 --   publishable key. Each function checks a session token before it reads or
 --   writes anything, and returns only what that person may see.
 -- * Employees sign in with their name and personal number; the manager signs in
---   with the manager code, which is stored only as a bcrypt hash. Repeated wrong
---   attempts are blocked for 15 minutes.
+--   with the manager code. Both secrets are stored only as bcrypt hashes, so
+--   nobody, the manager included, can read them back. Repeated wrong attempts
+--   are blocked for 15 minutes.
+-- * Every consent (terms of use, and any optional one) is recorded with its
+--   text version, time and the screen it was given on.
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -61,14 +64,24 @@ alter table sadran.settings add column if not exists logo_updated_at timestamptz
 create table if not exists sadran.employees (
   id text primary key check (id ~ '^e_[a-z0-9_]{1,40}$'),
   name text not null check (length(btrim(name)) between 1 and 80),
-  number text not null check (number ~ '^[0-9]{3,12}$'),
+  number_hash text not null,   -- bcrypt of the personal number (4 to 12 digits); the number itself is never stored
   roles jsonb not null default '[]'::jsonb check (jsonb_typeof(roles) = 'array'),
   max_shifts smallint not null default 5 check (max_shifts between 1 and 7),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  -- deferred, so an import can swap two people's numbers in one go
-  constraint employees_number_key unique (number) deferrable initially deferred
+  updated_at timestamptz not null default now()
 );
+
+-- Upgrade from the first version, which kept the personal number readable.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'sadran' and table_name = 'employees' and column_name = 'number') then
+    alter table sadran.employees add column if not exists number_hash text;
+    update sadran.employees set number_hash = extensions.crypt(number, extensions.gen_salt('bf', 8)) where number_hash is null;
+    alter table sadran.employees alter column number_hash set not null;
+    alter table sadran.employees drop column number;
+  end if;
+end $$;
 
 -- One row per employee per week. The week is the date of its Sunday.
 create table if not exists sadran.availability (
@@ -130,6 +143,25 @@ create table if not exists sadran.reminders (
 );
 
 -- Defence in depth: should the schema ever be exposed, nothing is readable.
+-- Every consent given or withdrawn, one row each, never changed afterwards: who, which consent,
+-- which version of its text, when, and on which screen. A person's latest row is their current choice.
+-- The consent types and their texts are defined in site/content/legal/legal.json.
+create table if not exists sadran.consents (
+  id bigint generated always as identity primary key,
+  subject text not null,                 -- 'manager', or the employee's id
+  employee_id text references sadran.employees (id) on delete cascade,
+  consent text not null check (consent ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  version text not null check (length(version) between 1 and 20),
+  granted boolean not null,
+  source text not null check (length(source) between 1 and 40),
+  details jsonb not null default '{}'::jsonb check (jsonb_typeof(details) = 'object'),
+  unsub_token text unique,               -- lets a link in a message withdraw this consent without signing in
+  at timestamptz not null default now(),
+  check ((subject = 'manager') = (employee_id is null)),
+  check (employee_id is null or subject = employee_id)
+);
+create index if not exists consents_subject on sadran.consents (subject, consent, id desc);
+
 alter table sadran.settings enable row level security;
 alter table sadran.employees enable row level security;
 alter table sadran.availability enable row level security;
@@ -138,6 +170,7 @@ alter table sadran.sessions enable row level security;
 alter table sadran.login_failures enable row level security;
 alter table sadran.push_subscriptions enable row level security;
 alter table sadran.reminders enable row level security;
+alter table sadran.consents enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Internal helpers (not callable from the website)
@@ -152,6 +185,9 @@ create or replace function sadran.norm_number(t text) returns text
 language sql immutable set search_path = '' as $$
   select regexp_replace(coalesce(t, ''), '[\s().+-]', '', 'g')
 $$;
+
+-- One employee per name, so a name and a personal number always point at one person.
+create unique index if not exists employees_name_key on sadran.employees (sadran.norm_name(name));
 
 create or replace function sadran.hash_token(t text) returns text
 language sql immutable set search_path = '' as $$
@@ -246,6 +282,10 @@ declare
   names text[];
   n int;
 begin
+  -- Housekeeping on every run: forget what is no longer needed.
+  delete from sadran.reminders where sent_at < now() - interval '90 days';
+  delete from sadran.login_failures where at < now() - interval '1 day';
+  delete from sadran.sessions where expires_at < now();
   select config into cfg from sadran.settings where id = 1;
   dl := cfg -> 'rules' -> 'deadline';
   if dl is null or coalesce((dl ->> 'on')::boolean, false) is false then
@@ -319,6 +359,26 @@ language sql volatile set search_path = '' as $$
   delete from sadran.push_subscriptions where endpoint = p_endpoint;
 $$;
 
+-- A person's current consents: the latest record of each type.
+create or replace function sadran.consents_of(p_subject text) returns jsonb
+language sql stable set search_path = '' as $$
+  select coalesce(jsonb_object_agg(c.consent, jsonb_build_object(
+           'version', c.version, 'granted', c.granted, 'at', sadran.ms(c.at), 'source', c.source, 'details', c.details)), '{}'::jsonb)
+    from (select distinct on (consent) consent, version, granted, at, source, details
+            from sadran.consents where subject = p_subject order by consent, id desc) c
+$$;
+
+-- For a future sender of messages that need consent (for example promotions): everyone whose
+-- latest record for that consent is a grant, with what they gave and the token for their
+-- unsubscribe link. Not callable from the website.
+create or replace function sadran.consent_recipients(p_consent text)
+returns table (subject text, details jsonb, unsub_token text, granted_at timestamptz)
+language sql stable set search_path = '' as $$
+  select c.subject, c.details, c.unsub_token, c.at
+    from (select distinct on (subject) * from sadran.consents where consent = p_consent order by subject, id desc) c
+   where c.granted
+$$;
+
 revoke all on all functions in schema sadran from public;
 
 -- ---------------------------------------------------------------------------
@@ -384,14 +444,20 @@ create or replace function public.sadran_login_employee(p_name text, p_number te
 language plpgsql volatile security definer set search_path = '' as $$
 declare
   k text := 'employee:' || sadran.norm_name(p_name);
+  n text := sadran.norm_number(p_number);
   eid text;
+  h text;
 begin
   if sadran.too_many(k, 10) then
     return jsonb_build_object('ok', false, 'error', 'locked');
   end if;
-  select id into eid from sadran.employees
-   where number = sadran.norm_number(p_number) and sadran.norm_name(name) = sadran.norm_name(p_name);
+  select id, number_hash into eid, h from sadran.employees
+   where sadran.norm_name(name) = sadran.norm_name(p_name);
   if eid is null then
+    -- The same work as a real check, so the response time does not reveal which names exist.
+    perform extensions.crypt(n, extensions.gen_salt('bf', 8));
+  end if;
+  if eid is null or n = '' or extensions.crypt(n, h) <> h then
     perform sadran.record_failure(k);
     return jsonb_build_object('ok', false, 'error', 'bad_login');
   end if;
@@ -422,7 +488,6 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', e.id,
            'name', e.name,
-           'number', case when mgr then e.number else '' end,
            'roles', case when mgr or e.id = s.employee_id then e.roles else '[]'::jsonb end,
            'max', e.max_shifts) order by e.created_at, e.id), '[]'::jsonb)
     into emps from sadran.employees e;
@@ -441,7 +506,8 @@ begin
    where w.week >= since and (mgr or w.published is not null);
   return jsonb_build_object('role', s.role, 'me', s.employee_id, 'config', cfg,
                             'employees', emps, 'avail', av, 'weeks', wk,
-                            'logoVer', (select sadran.ms(logo_updated_at) from sadran.settings where id = 1));
+                            'logoVer', (select sadran.ms(logo_updated_at) from sadran.settings where id = 1),
+                            'consents', sadran.consents_of(coalesce(s.employee_id, 'manager')));
 end $$;
 
 create or replace function public.sadran_save_config(p_token text, p_config jsonb) returns void
@@ -457,34 +523,43 @@ begin
   update sadran.settings set config = p_config, updated_at = now() where id = 1;
 end $$;
 
+-- Add or change one employee. The personal number is required for a new employee and optional
+-- afterwards: leaving it out keeps the current one. A new number signs the employee out everywhere.
 create or replace function public.sadran_save_employee(p_token text, p_employee jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
   eid text := p_employee ->> 'id';
   nm text := regexp_replace(btrim(coalesce(p_employee ->> 'name', '')), '\s+', ' ', 'g');
   n text := sadran.norm_number(p_employee ->> 'number');
-  clash text;
+  is_new boolean;
 begin
   perform sadran.auth(p_token, 'manager');
   if nm = '' then
     return jsonb_build_object('ok', false, 'error', 'name');
   end if;
-  if n !~ '^[0-9]{3,12}$' then
+  is_new := not exists (select 1 from sadran.employees where id = eid);
+  if n = '' and is_new then
+    return jsonb_build_object('ok', false, 'error', 'number_required');
+  end if;
+  if n <> '' and n !~ '^[0-9]{4,12}$' then
     return jsonb_build_object('ok', false, 'error', 'number_format');
   end if;
-  select name into clash from sadran.employees where number = n and id <> eid;
-  if clash is not null then
-    return jsonb_build_object('ok', false, 'error', 'number_taken', 'name', clash);
-  end if;
-  if sadran.is_manager_code(n) then
+  if n <> '' and sadran.is_manager_code(n) then
     return jsonb_build_object('ok', false, 'error', 'number_is_code');
   end if;
-  insert into sadran.employees (id, name, number, roles, max_shifts)
-  values (eid, nm, n, coalesce(p_employee -> 'roles', '[]'::jsonb),
-          coalesce((p_employee ->> 'max')::smallint, 5))
+  if exists (select 1 from sadran.employees where sadran.norm_name(name) = sadran.norm_name(nm) and id <> eid) then
+    return jsonb_build_object('ok', false, 'error', 'name_taken');
+  end if;
+  insert into sadran.employees (id, name, number_hash, roles, max_shifts)
+  values (eid, nm, case when n <> '' then extensions.crypt(n, extensions.gen_salt('bf', 8)) else '' end,
+          coalesce(p_employee -> 'roles', '[]'::jsonb), coalesce((p_employee ->> 'max')::smallint, 5))
   on conflict (id) do update
-     set name = excluded.name, number = excluded.number, roles = excluded.roles,
-         max_shifts = excluded.max_shifts, updated_at = now();
+     set name = excluded.name,
+         number_hash = case when excluded.number_hash <> '' then excluded.number_hash else sadran.employees.number_hash end,
+         roles = excluded.roles, max_shifts = excluded.max_shifts, updated_at = now();
+  if n <> '' and not is_new then
+    delete from sadran.sessions where employee_id = eid;
+  end if;
   return jsonb_build_object('ok', true);
 end $$;
 
@@ -495,38 +570,52 @@ begin
   delete from sadran.employees where id = p_id;
 end $$;
 
--- Add or update many employees, and optionally remove some, in one step.
+-- Add or update many employees, and optionally remove some, in one step: all of it or none.
+-- As above, a row for an existing employee may leave the personal number out.
 create or replace function public.sadran_import_employees(p_token text, p_upserts jsonb, p_deletes jsonb) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
   item jsonb;
+  num text;
 begin
   perform sadran.auth(p_token, 'manager');
+  if jsonb_array_length(coalesce(p_upserts, '[]'::jsonb)) > 500 then
+    return jsonb_build_object('ok', false, 'error', 'too_many');
+  end if;
   for item in select value from jsonb_array_elements(coalesce(p_upserts, '[]'::jsonb)) loop
-    if btrim(coalesce(item ->> 'name', '')) = '' or sadran.norm_number(item ->> 'number') !~ '^[0-9]{3,12}$' then
+    num := sadran.norm_number(item ->> 'number');
+    if btrim(coalesce(item ->> 'name', '')) = '' or (num <> '' and num !~ '^[0-9]{4,12}$') then
       return jsonb_build_object('ok', false, 'error', 'bad_row', 'name', item ->> 'name');
     end if;
-    if sadran.is_manager_code(sadran.norm_number(item ->> 'number')) then
+    if num = '' and not exists (select 1 from sadran.employees where id = item ->> 'id') then
+      return jsonb_build_object('ok', false, 'error', 'number_required', 'name', item ->> 'name');
+    end if;
+    if num <> '' and sadran.is_manager_code(num) then
       return jsonb_build_object('ok', false, 'error', 'number_is_code', 'name', item ->> 'name');
     end if;
   end loop;
   delete from sadran.employees
    where id in (select jsonb_array_elements_text(coalesce(p_deletes, '[]'::jsonb)));
-  insert into sadran.employees (id, name, number, roles, max_shifts)
+  -- A new number signs that employee out everywhere.
+  delete from sadran.sessions
+   where employee_id in (select x.value ->> 'id' from jsonb_array_elements(coalesce(p_upserts, '[]'::jsonb)) as x
+                          where sadran.norm_number(x.value ->> 'number') <> '');
+  insert into sadran.employees (id, name, number_hash, roles, max_shifts)
   select x.value ->> 'id',
          regexp_replace(btrim(x.value ->> 'name'), '\s+', ' ', 'g'),
-         sadran.norm_number(x.value ->> 'number'),
+         case when sadran.norm_number(x.value ->> 'number') <> ''
+              then extensions.crypt(sadran.norm_number(x.value ->> 'number'), extensions.gen_salt('bf', 8)) else '' end,
          coalesce(x.value -> 'roles', '[]'::jsonb),
          coalesce((x.value ->> 'max')::smallint, 5)
     from jsonb_array_elements(coalesce(p_upserts, '[]'::jsonb)) as x
   on conflict (id) do update
-     set name = excluded.name, number = excluded.number, roles = excluded.roles,
-         max_shifts = excluded.max_shifts, updated_at = now();
-  set constraints sadran.employees_number_key immediate;
+     set name = excluded.name,
+         number_hash = case when excluded.number_hash <> '' then excluded.number_hash else sadran.employees.number_hash end,
+         roles = excluded.roles, max_shifts = excluded.max_shifts, updated_at = now();
   return jsonb_build_object('ok', true);
 exception
   when unique_violation then
-    return jsonb_build_object('ok', false, 'error', 'number_taken');
+    return jsonb_build_object('ok', false, 'error', 'name_taken');
 end $$;
 
 -- An employee saves their own availability; the manager may save anyone's.
@@ -542,7 +631,7 @@ begin
   if s.role = 'employee' and s.employee_id is distinct from p_employee then
     raise exception 'forbidden';
   end if;
-  if jsonb_typeof(p_slots) is distinct from 'object' then
+  if jsonb_typeof(p_slots) is distinct from 'object' or length(p_slots::text) > 20000 then
     raise exception 'bad_input';
   end if;
   insert into sadran.availability (week, employee_id, slots, note, submitted_at, updated_at)
@@ -564,6 +653,10 @@ create or replace function public.sadran_save_week(
 language plpgsql volatile security definer set search_path = '' as $$
 begin
   perform sadran.auth(p_token, 'manager');
+  if length(coalesce(p_slots, '{}'::jsonb)::text) + length(coalesce(p_over, '{}'::jsonb)::text)
+     + length(coalesce(p_published, '{}'::jsonb)::text) > 600000 then
+    raise exception 'bad_input';
+  end if;
   insert into sadran.weeks (week, slots, overrides, published, updated_at)
   values (p_week, coalesce(p_slots, '{}'::jsonb), coalesce(p_over, '{}'::jsonb),
           case when jsonb_typeof(p_published) = 'object' then p_published end, now())
@@ -583,7 +676,7 @@ begin
   if c !~ '^[0-9]{6,12}$' then
     return jsonb_build_object('ok', false, 'error', 'code_format');
   end if;
-  if exists (select 1 from sadran.employees where number = c) then
+  if exists (select 1 from sadran.employees where number_hash = extensions.crypt(c, number_hash)) then
     return jsonb_build_object('ok', false, 'error', 'code_is_number');
   end if;
   update sadran.settings
@@ -637,6 +730,54 @@ begin
   s := sadran.auth(p_token);
   delete from sadran.push_subscriptions
    where endpoint = p_endpoint and (s.role = 'manager' or employee_id = s.employee_id);
+end $$;
+
+-- Record that the signed-in person gave or withdrew a consent. `p_source` is the screen it happened
+-- on ('first-run', 'sign-in', 'preferences'), `p_details` anything given with it (for example the
+-- address for promotions). Returns the person's current consents.
+create or replace function public.sadran_consent_set(
+  p_token text, p_consent text, p_version text, p_granted boolean, p_source text, p_details jsonb
+) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  s sadran.sessions;
+  subj text;
+begin
+  s := sadran.auth(p_token);
+  subj := coalesce(s.employee_id, 'manager');
+  if coalesce(p_consent, '') !~ '^[a-z][a-z0-9_-]{0,39}$'
+     or length(coalesce(p_version, '')) not between 1 and 20
+     or length(coalesce(p_source, '')) not between 1 and 40
+     or p_granted is null
+     or jsonb_typeof(coalesce(p_details, '{}'::jsonb)) <> 'object'
+     or length(coalesce(p_details, '{}'::jsonb)::text) > 2000 then
+    raise exception 'bad_input';
+  end if;
+  insert into sadran.consents (subject, employee_id, consent, version, granted, source, details, unsub_token)
+  values (subj, s.employee_id, p_consent, p_version, p_granted, p_source, coalesce(p_details, '{}'::jsonb),
+          case when p_granted then encode(extensions.gen_random_bytes(24), 'hex') end);
+  return sadran.consents_of(subj);
+end $$;
+
+-- Withdraw a consent from a link in a message, without signing in. The token is the one stored
+-- with the grant. Asking again for a consent that is already withdrawn changes nothing.
+create or replace function public.sadran_unsubscribe(p_token text) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  c sadran.consents;
+begin
+  if coalesce(p_token, '') !~ '^[0-9a-f]{48}$' then
+    return jsonb_build_object('ok', false);
+  end if;
+  select * into c from sadran.consents where unsub_token = p_token;
+  if not found then
+    return jsonb_build_object('ok', false);
+  end if;
+  if (select granted from sadran.consents where subject = c.subject and consent = c.consent order by id desc limit 1) then
+    insert into sadran.consents (subject, employee_id, consent, version, granted, source)
+    values (c.subject, c.employee_id, c.consent, c.version, false, 'unsubscribe-link');
+  end if;
+  return jsonb_build_object('ok', true, 'consent', c.consent);
 end $$;
 
 -- Only the functions above are callable from the website. The sadran.* helpers, including the

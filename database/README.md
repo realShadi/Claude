@@ -6,8 +6,10 @@ Sadran (`site/`) is the weekly shift scheduler. This folder holds what it needs 
 |---|---|
 | `schema.sql` | The database: tables, sign-in checks and the functions the site calls. Safe to run again. |
 | `reminders.sql` | Runs the availability reminders every 10 minutes (pg_cron). Run after `schema.sql`. |
-| `employees-template.xlsx` | The layout for the employee list (name and personal number), for import in the app. |
+| `employees-template.xlsx` | The layout for the employee list (name and personal number), for import in the app. Built by `../tools/make-template.py`. |
 | `../supabase/functions/sadran-remind/` | The Edge Function that sends the reminders as browser notifications. |
+| `../site/content/legal/` | The legal texts, the business details that fill them, and the consent and cookie settings. See its `README.md`. |
+| `../LEGAL_TODO.md` | What still has to be filled in and reviewed by a lawyer before going live. |
 
 ## How it fits together
 
@@ -18,15 +20,16 @@ phone / computer ──► site/ (static host) ──► Supabase project (xdjei
        └──── browser push service ◄── sadran-remind ◄─┘ every 10 minutes (pg_cron + pg_net)
 ```
 
-- The site has no build step: `index.html` plus `sw.js` (shows notifications), `manifest.webmanifest` and icons (so it can be added to a phone's home screen). It talks to Supabase with the project's **publishable key**, which is written into the page. That key is meant to be public: it can only call the `sadran_*` functions.
+- The site has no build step: `index.html`, `app.css` and `app.js`, with the fonts (`fonts/`) and the Excel library (`vendor/`) served from the site itself, so a visit contacts no third party. `manifest.webmanifest` and the icons let it be added to a phone's home screen. `sw.js` shows notifications and is installed only on devices where notifications are switched on. The site talks to Supabase with the project's **publishable key**, which is written into `app.js`. That key is meant to be public: it can only call the `sadran_*` functions.
 - Every function checks a sign-in before it reads or writes anything:
   - **Employees** sign in with their name and personal number. They see their own availability, their teammates' names and published rosters. They can change only their own availability.
   - **The manager** signs in with the manager code. The manager sees and changes everything.
 - The tables live in a private schema the Data API does not expose, with row-level security turned on and no policies, so nothing can read them directly.
-- The manager code is stored only as a bcrypt hash. Ten wrong attempts on one name, or on the manager code, block further attempts for 15 minutes.
+- The manager code and the employees' personal numbers are stored only as bcrypt hashes, and sign-in sessions as SHA-256 hashes. Nobody can read a personal number back, the manager included: the manager can only set a new one, which signs that employee out everywhere. Ten wrong attempts on one name, or on the manager code, block further attempts for 15 minutes.
+- Every agreement to the terms, and any optional consent, is recorded in `sadran.consents` with the person, the version of the text, the time and the screen it was given on.
 - Changes are saved automatically about a second after the last edit. Other devices pick them up within about 30 seconds, or right away when the page is opened or brought back to the front. If the connection drops, the header shows "לא נשמר" and the change is sent when it returns.
 
-Inside the Claude viewer, pages cannot reach outside services, so the same file runs there as a one-device demo with example data, saved in that browser only. Notifications do not run there.
+Inside the Claude viewer, pages cannot reach outside services, so the site runs there as a one-device demo with example data, saved in that browser only. `python3 tools/build-demo.py out.html` folds the site into the single file the viewer needs. Notifications do not run there.
 
 ## What the manager can set (הגדרות)
 
@@ -52,9 +55,9 @@ How it is wired:
 2. `supabase/functions/sadran-remind` signs each message with the app's VAPID key, encrypts it for the device (RFC 8291) and posts it to the device's push service. Devices that report they are gone are removed.
 3. `reminders.sql` schedules the function every 10 minutes.
 
-The function connects with `SUPABASE_DB_URL` (provided by Supabase) and needs two secrets: `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_JWK`. The public key is also in `site/index.html` (`VAPID_PUBLIC`). Only the push services' own addresses (Google, Mozilla, Apple, Microsoft) are accepted as devices.
+The function connects with `SUPABASE_DB_URL` (provided by Supabase) and needs two secrets: `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_JWK`. The public key is also in `site/app.js` (`VAPID_PUBLIC`). The private key exists only as a Supabase secret; it must never be committed. Only the push services' own addresses (Google, Mozilla, Apple, Microsoft) are accepted as devices.
 
-To replace the key pair: generate a new P-256 key pair, set both secrets, put the new public key in `site/index.html`, and redeploy. Everyone then turns notifications on again.
+To replace the key pair: generate a new P-256 key pair, set both secrets, put the new public key in `site/app.js`, and redeploy. Everyone then turns notifications on again.
 
 Deploy the function with the Supabase CLI:
 
@@ -64,30 +67,41 @@ supabase functions deploy sadran-remind --no-verify-jwt
 
 ## First run
 
-1. Open the hosted site. A new database opens on **הגדרה ראשונה**: choose the manager code (6 to 12 digits).
-2. In **צוות**, import the employee list from Excel (**ייבוא מאקסל**) or add people one by one.
-3. In **הגדרות**, add the logo, choose the colours and the export style, check the roles, shifts and staffing, and set the availability deadline.
-4. Send the link to the team. Each person signs in with their name and personal number, and can turn on notifications.
+1. Fill in the business details in `site/content/legal/business.json` and go through `LEGAL_TODO.md`, so the legal pages are complete before anyone is asked to agree to them.
+2. Open the hosted site. A new database opens on **הגדרה ראשונה**: choose the manager code (6 to 12 digits) and tick the agreement to the terms of use and the privacy policy.
+3. In **צוות**, import the employee list from Excel (**ייבוא מאקסל**) or add people one by one. Tell each person their personal number then: the site does not show it again.
+4. In **הגדרות**, add the logo, choose the colours and the export style, check the roles, shifts and staffing, and set the availability deadline.
+5. Send the link to the team. Each person signs in with their name and personal number, is asked once to agree to the terms and the privacy policy, and can turn on notifications.
 
-The first-run screen is open to whoever reaches the site first, so do step 1 before sharing the link.
+The first-run screen is open to whoever reaches the site first, so do step 2 before sharing the link.
 
 ## The employee list (`employees-template.xlsx`)
 
 | Column | Required | Meaning |
 |---|---|---|
 | שם (name) | yes | What the employee types when signing in. |
-| מספר אישי (personal number) | yes | 3 to 12 digits, different for every employee and from the manager code. Stored as text, so a leading zero is kept. |
+| מספר אישי (personal number) | for a new employee | 4 to 12 digits, different from the manager code. Stored as text, so a leading zero is kept. Leave it empty for someone already in the system to keep their number. |
 | תפקידים (roles) | no | Role names exactly as they appear in the app's settings, separated by commas. |
 | מקסימום משמרות בשבוע (max shifts per week) | no | A whole number from 1 to 7. Defaults to 5. |
 
-Row 2 of the template is an example. Any row whose name contains "דוגמה" is skipped on import. On import, an existing number updates that employee and a new number adds one; a person whose number changed is matched by name. **ייצוא לאקסל** writes the current list back out in the same layout.
+Row 2 of the template is an example. Any row whose name contains "דוגמה" is skipped on import. People are matched by name, so every name must be different: a name already in the system is updated, a new name is added. A number in the file replaces that person's number and signs them out. **ייצוא לאקסל** writes the current list back out in the same layout, with the number column empty, because the numbers cannot be read back.
 
 ## Hosting
 
-Any static host with HTTPS works. Publish the `site/` folder; there is nothing to build. HTTPS is needed for notifications.
+Any static host with HTTPS works. Publish the `site/` folder; there is nothing to build. The page sends plain-HTTP visitors to HTTPS, and notifications need it.
 
-- **Netlify**: create a site from this repository. `netlify.toml` already tells it to publish `site/`, and every push to `main` updates the site.
-- **GitHub Pages**: needs a public repository, or a paid GitHub plan for a private one.
+- **Netlify**: create a site from this repository. `netlify.toml` already tells it to publish `site/` and sets the security headers; every push to `main` updates the site.
+- **GitHub Pages**: needs a public repository, or a paid GitHub plan for a private one. It cannot send custom headers, so the protections in `netlify.toml` (below) are missing there.
+
+### Security headers
+
+The page carries its own Content-Security-Policy (in `index.html`): scripts, styles, fonts and images only from the site itself, and connections only to the site and the Supabase project. Nothing can be loaded from another address unless it is added there.
+
+`netlify.toml` adds the headers a page cannot set for itself: HTTPS only for a year (`Strict-Transport-Security`), no embedding in other sites (`frame-ancestors 'none'`, `X-Frame-Options`), no type guessing, a short referrer, and no camera, microphone, location or payment access. On another host, set the same headers there.
+
+## Legal pages, consents and cookies
+
+The privacy policy, terms of use, accessibility statement and cookies page, the "I agree" boxes and the cookie notice are all driven by the files in `site/content/legal/`. Its `README.md` explains how to edit a text, add a page, add a consent type, or add an analytics tool that loads only after consent. `LEGAL_TODO.md` at the top of the repository lists what must be filled in and reviewed first.
 
 ## Changing the database
 
@@ -97,4 +111,7 @@ To check the security setup, use **Advisors → Security** in the Supabase dashb
 
 ## Privacy
 
-A filled-in employee list is personal data. Prefer short codes as personal numbers rather than phone or ID numbers, and keep filled-in copies of the Excel file out of public repositories.
+- The site keeps the minimum: a name, a hashed sign-in number, roles, availability and rosters. It asks for no email address, phone number, ID number or payment details.
+- A filled-in employee list is personal data. Prefer random codes as personal numbers rather than phone or ID numbers, keep filled-in copies of the Excel file out of repositories, and delete them after the import.
+- Deleting an employee deletes their availability, notes, consent records, notification subscriptions and sessions. Failed sign-in attempts are deleted after a day and reminder records after 90 days.
+- The database is in the Supabase region chosen when the project was created (this project: Tokyo). That is outside Israel; see `LEGAL_TODO.md`.
