@@ -1,0 +1,10 @@
+{
+  "name": "sadran-tests",
+  "private": true,
+  "description": "Browser tests for the legal pages, consents, accessibility and script-injection safety of the Sadran site.",
+  "scripts": { "test": "bash run.sh" },
+  "devDependencies": {
+    "axe-core": "^4.14.1",
+    "playwright": "^1.56.0"
+  }
+}
