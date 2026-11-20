@@ -67,10 +67,14 @@ async function run(browser, scheme, size) {
   await dl.saveAs(backup);
   await page.setInputFiles('#backupFile', backup); await page.waitForSelector('#btnRestoreGo'); await at('restore dialog'); await shut();
   await page.click('[data-act="roleColor"]'); await page.waitForSelector('#sheetRoot .sheet'); await at('colour dialog'); await shut();
+  await page.click('[data-act="rankOpen"]'); await page.waitForSelector('#rankOn'); await at('role priority dialog, no order'); await page.click('#rankOn'); await at('role priority dialog, ordered'); await shut();
+  await at('settings with an order of priority');
   await page.click('#btnOut'); await page.waitForSelector('#signForm');
   await page.click('#demoEmp'); await L.passGate(page);
   await at('my availability');
   await page.click('.av-time'); await page.waitForSelector('#sheetRoot .sheet'); await at('hours dialog'); await shut();
+  await page.click('.av-dayt'); await page.waitForSelector('#dh-0'); await page.fill('#dh-0', '12:00'); await page.fill('#dh-1', '18:00'); await at('day hours dialog');
+  await page.fill('#dh-1', ''); await page.click('#dhSave'); await page.waitForSelector('#sheetRoot .err'); await at('day hours dialog, error'); await shut();
   await tab('my-shifts'); await at('my shifts');
   if (s.errors.length) console.log('PAGE ERRORS', tag, s.errors);
   await page.context().close();

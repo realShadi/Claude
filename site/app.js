@@ -17,7 +17,7 @@ const STORE_ID_KEY = 'sadran.store';  // hosted site: the store this device last
 const SEED_NAME = 'מרכול השכונה';
 const SEED_IDS = ['e_noa', 'e_yosi', 'e_michal', 'e_shadi', 'e_dana', 'e_tamar', 'e_linoy', 'e_omer', 'e_ron', 'e_ahmad', 'e_ella'];
 const DEMO_CODE = '2468';
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 // The shared database. The key is the project's publishable key, which is meant to sit in a web page:
 // it only lets the page call the sadran_* functions, and each of those checks who is signed in.
@@ -968,6 +968,37 @@ const slotV = x => (x && typeof x === 'object' ? (x.v === 2 ? 2 : 1) : x === 2 ?
 const slotT = x => (x && typeof x === 'object' && Array.isArray(x.t) && x.t.length ? x.t : null);
 function slotRanges(x, sh) { const t = slotT(x); return t && sh ? t.map(r => [r[0] || sh.start, r[1] || sh.end]) : null; }
 function rangesText(x, sh) { const r = slotRanges(x, sh); return r ? r.map(q => q[0] + '–' + q[1]).join(', ') : ''; }
+const hmOf = m => pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60);
+// Hours for a whole day (for example 12:00–18:00) fall into the day's shifts: each open shift they
+// touch gets the part inside it. Returns null when the hours are not usable.
+function dayParts(d, from, to) {
+  if (!from || !to) return null;
+  const a = mins(from), b = mins(to);
+  if (b <= a) return null;
+  const out = [];
+  for (const sh of state.shifts) {
+    const k = sk(d, sh.id);
+    if (state.closed[k]) continue;
+    const s0 = mins(sh.start), e0 = mins(sh.end) > s0 ? mins(sh.end) : mins(sh.end) + 1440;
+    const lo = Math.max(a, s0), hi = Math.min(b, e0);
+    if (hi > lo) out.push({ sh, k, lo, hi, full: lo === s0 && hi === e0, t: [lo === s0 ? null : hmOf(lo), hi === e0 ? null : hmOf(hi)] });
+  }
+  return out;
+}
+// A role's order of priority: who is placed first in it. Once the manager sets an order, everyone
+// who can fill the role is in it; someone who gets the role later joins at the end.
+function rankOrder(r) {
+  if (!r || !Array.isArray(r.rank) || !r.rank.length) return [];
+  const holders = state.employees.filter(e => e.roles.includes(r.id));
+  const ids = new Set(holders.map(e => e.id));
+  const top = r.rank.filter((id, i, a) => ids.has(id) && a.indexOf(id) === i);
+  return top.concat(holders.map(e => e.id).filter(id => top.indexOf(id) < 0));
+}
+// 0 when the role has no order; otherwise higher for someone nearer the top.
+function rankWeight(roleId, empId) {
+  const list = rankOrder(roleById(roleId)), i = list.indexOf(empId);
+  return i < 0 ? 0 : list.length - i;
+}
 function hoursOf(wk, empId, k) {
   const rec = availRec(wk, empId);
   return rec ? rangesText(rec.slots[k], shiftById(unsk(k)[1])) : '';
@@ -997,6 +1028,14 @@ function issueText(z, e) {
   return 'מעבר למקסימום (' + e.max + ' משמרות)';
 }
 
+// The split of a day's hours between its shifts, as a sentence.
+function dayPreview(d, from, to) {
+  if (!from || !to) return 'בוחרים שעת התחלה ושעת סיום.';
+  const parts = dayParts(d, from, to);
+  if (!parts) return 'שעת הסיום צריכה להיות אחרי שעת ההתחלה.';
+  if (!parts.length) return 'השעות האלה לא נופלות באף משמרת של היום.';
+  return 'יסומן: ' + parts.map(q => esc(q.sh.name) + ' ' + ltr(hmOf(q.lo) + '–' + hmOf(q.hi)) + (q.full ? ' (כל המשמרת)' : '')).join(' · ');
+}
 /* ---------- automatic scheduling ----------
    Each attempt is greedy, most-constrained position first; a pick favours people who asked for
    the shift and people with the lightest load, and a short swap search then tries to close the
@@ -1007,11 +1046,13 @@ function autoSchedule(wk, fillOnly) {
   const base = JSON.stringify(w.slots);
   const fits = (e, p) => issues(wk, p.d, p.sh, p.role, e, p).length === 0;
   const cands = p => state.employees.filter(e => fits(e, p));
+  // The role's order of priority comes first: someone higher in it is placed whenever they can be.
+  // Then those who asked for the shift, and the lightest load. Someone there for part of the shift
+  // (12:00–18:00 across a morning and an evening shift) is placed like anyone else.
   const score = (e, p) => {
     const load = empShifts(w, e.id).length;
-    const slot = state.avail[wk][e.id].slots[p.k], pref = slotV(slot) === 2 ? 2 : 0;
-    // Someone there for only part of the shift ranks below someone free for all of it, even if they asked for it.
-    return pref - (slotT(slot) ? 2.5 : 0) + (1 - load / e.max) * 3 - (e.roles.length - 1) * 0.6 + Math.random() * 0.8;
+    const slot = state.avail[wk][e.id].slots[p.k], pref = slotV(slot) === 2 ? 2 : 0, rank = rankWeight(p.role, e.id);
+    return (rank ? 100 + rank * 10 : 0) + pref + (1 - load / e.max) * 3 - (e.roles.length - 1) * 0.6 + Math.random() * 0.8;
   };
   const pick = (p, list) => list.map(e => [score(e, p), e]).sort((a, b) => b[0] - a[0])[0][1];
   const put = (p, id) => { w.slots[p.k][p.i].emp = id; };
@@ -1054,21 +1095,21 @@ function autoSchedule(wk, fillOnly) {
     }
     if (!fillOnly) for (const p of unfilled) tryFill(p, 2, new Set());
   }
-  // Coverage first, then whole-shift cover and granted preferences, then an even spread of the load.
+  // Coverage first, then the roles' order of priority, then granted preferences, then an even spread of the load.
   function quality() {
-    let filled = 0, prefs = 0, parts = 0;
+    let filled = 0, prefs = 0, ranked = 0;
     const load = {};
     for (const k in w.slots) for (const p of w.slots[k]) {
       if (!p.emp) continue;
       filled++;
       load[p.emp] = (load[p.emp] || 0) + 1;
-      const av = availRec(wk, p.emp);
+      const av = availRec(wk, p.emp), rank = rankWeight(p.role, p.emp);
       if (av && slotV(av.slots[k]) === 2) prefs++;
-      if (av && slotT(av.slots[k])) parts++;
+      if (rank) ranked += 30 + rank * 5;
     }
     let spread = 0;
     for (const e of state.employees) spread += Math.pow((load[e.id] || 0) / e.max, 2);
-    return filled * 100 + prefs * 2 - parts * 3 - spread * 10;
+    return filled * 1000 + ranked + prefs * 2 - spread * 10;
   }
   let best = base, bestQ = -Infinity;
   for (let t = 0; t < (fillOnly ? 8 : 20); t++) {
@@ -1189,7 +1230,9 @@ function availEditor(wk, empId) {
   const prev = availRec(toKey(addDays(start, -7)), empId);
   let grid = '<span></span>' + state.shifts.map(sh => '<span class="av-hd"><span data-sn="' + sh.id + '">' + esc(sh.name) + '</span><bdi class="t" dir="ltr" data-st="' + sh.id + '">' + esc(sh.start + '–' + sh.end) + '</bdi></span>').join('');
   for (let d = 0; d < 7; d++) {
-    grid += '<span class="av-day"><strong>' + DAYS[d] + '</strong>' + ltr(dm(addDays(start, d))) + '</span>';
+    const open = state.shifts.some(sh => !state.closed[sk(d, sh.id)]);
+    grid += '<span class="av-day"><strong>' + DAYS[d] + '</strong>' + ltr(dm(addDays(start, d))) +
+      (open ? '<button type="button" class="av-dayt" id="avd-' + empId + '-' + d + '" data-act="avDay" data-emp="' + empId + '" data-d="' + d + '" aria-label="שעות ב' + dayTitle(d) + '">' + icon('clock') + 'שעות</button>' : '') + '</span>';
     for (const sh of state.shifts) {
       const k = sk(d, sh.id);
       if (state.closed[k]) { grid += '<span class="av-cell is-closed">סגור</span>'; continue; }
@@ -1322,11 +1365,19 @@ function viewTeam() {
       : '<section class="card empty"><h2 class="h2">עוד אין עובדים</h2><p class="sub">מוסיפים עובד/ת עם שם ומספר אישי, או מייבאים את כל הרשימה מקובץ אקסל.</p></section>');
 }
 
+// Under each role in the settings: its order of priority, and the button that sets it.
+function rankLine(r) {
+  const order = rankOrder(r), n = order.length;
+  const text = n ? 'עדיפות: ' + order.slice(0, 3).map((id, i) => (i + 1) + '. ' + esc(empById(id).name)).join(' · ') + (n > 3 ? ' ועוד ' + (n - 3) : '') : 'ללא סדר עדיפות';
+  return '<div class="rank-row"><span class="sub rank-sum" id="rks-' + r.id + '">' + text + '</span>' +
+    '<button type="button" class="btn btn-quiet rank-btn" id="rkb-' + r.id + '" data-act="rankOpen" data-id="' + r.id + '" aria-describedby="rks-' + r.id + '" aria-label="סדר עדיפות בתפקיד ' + esc(r.name || 'ללא שם') + '">' + icon('up') + 'סדר עדיפות</button></div>';
+}
 function viewSetup() {
   const roles = state.roles.map(r =>
     '<div class="set-row"><button type="button" class="swatch hl-' + r.color + '" id="sw-' + r.id + '" data-act="roleColor" data-id="' + r.id + '" aria-label="צבע התפקיד: ' + (HL_NAMES[r.color - 1] || '') + '. הקשה לבחירת צבע אחר"></button>' +
     '<input class="input" id="role-' + r.id + '" data-bind="role.name" data-id="' + r.id + '" value="' + esc(r.name) + '" aria-label="שם התפקיד" autocomplete="off">' +
-    (state.roles.length > 1 ? confirmBtn('role-' + r.id, icon('trash'), 'roleDel', 'data-id="' + r.id + '"', 'btn btn-icon btn-quiet btn-danger" aria-label="מחיקת התפקיד') : '') + '</div>').join('');
+    (state.roles.length > 1 ? confirmBtn('role-' + r.id, icon('trash'), 'roleDel', 'data-id="' + r.id + '"', 'btn btn-icon btn-quiet btn-danger" aria-label="מחיקת התפקיד') : '') + '</div>' +
+    rankLine(r)).join('');
   const shifts = state.shifts.map(sh => {
     const total = state.roles.reduce((a, r) => a + ((state.req[sh.id] || {})[r.id] || 0), 0);
     return '<div class="setcard">' +
@@ -1457,7 +1508,7 @@ function cleanState(src) {
     for (const k of Object.keys(obj(o))) { if (!ok(k)) continue; const v = make(o[k]); if (v !== undefined) out[k] = v; }
     return out;
   };
-  const roles = uniq(src.roles, r => ({ id: r.id, name: str(r.name, 120), color: int(r.color, 1, COLORS, 1) }));
+  const roles = uniq(src.roles, r => ({ id: r.id, name: str(r.name, 120), color: int(r.color, 1, COLORS, 1), rank: Array.isArray(r.rank) ? r.rank.slice(0, 500) : [] }));
   const shifts = uniq(src.shifts.filter(x => x && HM.test(x.start) && HM.test(x.end)), x => ({ id: x.id, name: str(x.name, 120), start: x.start, end: x.end }));
   if (!shifts.length) return null;
   const roleIds = new Set(roles.map(r => r.id)), shiftIds = new Set(shifts.map(x => x.id));
@@ -1466,6 +1517,7 @@ function cleanState(src) {
     roles: (Array.isArray(e.roles) ? e.roles : []).filter(id => roleIds.has(id)), max: int(e.max, 1, 99, 5),
   })).filter(e => e.name);
   const empIds = new Set(employees.map(e => e.id));
+  roles.forEach(r => { r.rank = r.rank.filter((id, i, a) => typeof id === 'string' && empIds.has(id) && a.indexOf(id) === i); if (!r.rank.length) delete r.rank; });
   const slotKey = k => k.length > 2 && k[1] === '|' && k[0] >= '0' && k[0] <= '6' && shiftIds.has(k.slice(2));
   const counts = o => pick(o, k => roleIds.has(k), v => int(v, 0, 60, undefined));
   const hm = v => (v == null ? null : HM.test(v) ? v : undefined);
@@ -1772,6 +1824,48 @@ const SHEETS = {
       body: '<div class="palette" role="group" aria-label="צבעים">' + HL.map((c, i) =>
         '<button type="button" class="pal hl-' + (i + 1) + '" id="pal-' + (i + 1) + '" data-act="roleColorSet" data-c="' + (i + 1) + '" aria-pressed="' + (r.color === i + 1) + '" aria-label="' + HL_NAMES[i] + '" title="' + HL_NAMES[i] + '">' + (r.color === i + 1 ? icon('check') : '') + '</button>').join('') + '</div>' +
         '<p class="sub">הצבע מסמן את התפקיד בסידור, בזמינות ובקבצים שמייצאים.</p>',
+    };
+  },
+  dayHours(s) {
+    const d = s.d;
+    const field = (i, label) => '<label class="dh-f"><span class="label">' + label + '</span><input type="time" class="input" id="dh-' + i + '" data-bind="dh.' + i + '" value="' + esc(s.t[i]) + '"></label>';
+    return {
+      title: 'שעות ב' + dayTitle(d),
+      sub: 'מאיזו שעה ועד איזו שעה אפשר לעבוד ביום הזה',
+      body: '<p class="sub">השעות מתחלקות בין המשמרות של היום. למשל 12:00–18:00, כשהבוקר עד 15:00 והערב מ־15:00: אפשר לשבץ אותך בבוקר מ־12:00 ובערב עד 18:00, והשעות יופיעו בסידור ליד השם.</p>' +
+        '<div class="dh">' + field(0, 'משעה') + field(1, 'עד שעה') + '</div>' +
+        '<p class="sub dh-prev" id="dhPrev" aria-live="polite">' + dayPreview(d, s.t[0], s.t[1]) + '</p>' +
+        '<div class="seg" role="group" aria-label="סוג הזמינות"><button type="button" class="seg-b" id="dhV1" data-act="dhV" data-v="1" aria-pressed="' + (s.v !== 2) + '">אפשר</button>' +
+        '<button type="button" class="seg-b" id="dhV2" data-act="dhV" data-v="2" aria-pressed="' + (s.v === 2) + '">מועדף</button></div>' +
+        (s.err ? '<p class="err" role="alert">' + s.err + '</p>' : ''),
+      foot: '<button type="button" class="btn btn-primary" id="dhSave" data-act="dhSave">שמירה</button>' +
+        (s.had ? '<button type="button" class="btn" id="dhClear" data-act="dhClear">לא אפשרי ביום הזה</button>' : '') +
+        '<button type="button" class="btn" data-act="close">ביטול</button>',
+    };
+  },
+  rank(s) {
+    const r = roleById(s.id);
+    if (!r) return null;
+    const order = rankOrder(r), holders = state.employees.filter(e => e.roles.includes(r.id));
+    let body = '<p class="sub">מי שלמעלה ישובץ ראשון בתפקיד הזה בשיבוץ האוטומטי, בכל משמרת שבה הוא זמין ולא הגיע למקסימום המשמרות שלו. רק המנהל/ת רואה את הסדר.</p>';
+    if (!holders.length) body += '<p class="banner">' + icon('users') + '<span>עוד אין עובדים בתפקיד הזה. מסמנים תפקידים לכל עובד/ת בלשונית הצוות.</span></p>';
+    else if (!order.length) {
+      body += '<p class="banner">' + icon('users') + '<span>כרגע אין סדר עדיפות: כל ' + holders.length + ' העובדים בתפקיד שווים, והשיבוץ מתחלק לפי הזמינות והעומס.</span></p>' +
+        '<div><button type="button" class="btn btn-primary" id="rankOn" data-act="rankOn">' + icon('up') + 'קביעת סדר עדיפות</button></div>';
+    } else {
+      const n = order.length;
+      body += '<ol class="rank">' + order.map((id, i) => {
+        const e = empById(id), nm = esc(e.name);
+        return '<li class="rank-i"><span class="rank-n t" aria-hidden="true">' + (i + 1) + '</span><span class="rank-name">' + nm + '</span>' +
+          '<button type="button" class="btn btn-icon btn-quiet" id="rk-up-' + id + '" data-act="rankMove" data-emp="' + id + '" data-dir="-1"' + (i ? '' : ' disabled') + ' aria-label="להעלות את ' + nm + ' (מקום ' + (i + 1) + ' מתוך ' + n + ')">' + icon('up') + '</button>' +
+          '<button type="button" class="btn btn-icon btn-quiet" id="rk-down-' + id + '" data-act="rankMove" data-emp="' + id + '" data-dir="1"' + (i < n - 1 ? '' : ' disabled') + ' aria-label="להוריד את ' + nm + ' (מקום ' + (i + 1) + ' מתוך ' + n + ')">' + icon('down') + '</button></li>';
+      }).join('') + '</ol>';
+    }
+    return {
+      title: 'סדר עדיפות: ' + esc(r.name || 'ללא שם'),
+      body,
+      foot: '<button type="button" class="btn btn-primary" data-act="close">סיום</button>' +
+        (order.length ? '<button type="button" class="btn" id="rankOff" data-act="rankOff">ביטול הסדר</button>' : ''),
     };
   },
   times(s) {
@@ -3349,6 +3443,62 @@ const actions = {
     const r = slotRanges(x, sh), back = ui.sheet && ui.sheet.type === 'avail' ? ui.sheet : null;
     openSheet({ type: 'times', emp: ds.emp, k: ds.k, v: slotV(x) === 2 ? 2 : 1, had: !!r, ranges: r ? r.map(q => q.slice()) : [[sh.start, sh.end]], err: '', back }, el.id);
   },
+  avDay(ds, el) {
+    const d = +ds.d, rec = availRec(ui.week, ds.emp), slots = rec ? rec.slots : {};
+    // Start from what the day already has, when it is one stretch of hours.
+    const marks = [];
+    for (const sh of state.shifts) {
+      const k = sk(d, sh.id), x = slots[k];
+      if (state.closed[k] || !slotV(x)) continue;
+      const s0 = mins(sh.start), e0 = mins(sh.end) > s0 ? mins(sh.end) : mins(sh.end) + 1440;
+      const r = slotRanges(x, sh) || [[sh.start, sh.end]];
+      r.forEach(q => { const a = q[0] === sh.start ? s0 : mins(q[0]), b = q[1] === sh.end ? e0 : mins(q[1]); marks.push([a < s0 ? a + 1440 : a, b < s0 ? b + 1440 : b, slotV(x)]); });
+    }
+    marks.sort((a, b) => a[0] - b[0]);
+    const one = marks.length && marks.every((m, i) => !i || m[0] <= marks[i - 1][1]) && marks[marks.length - 1][1] < 1440;
+    const t = one ? [hmOf(marks[0][0]), hmOf(Math.max.apply(null, marks.map(m => m[1])))] : ['', ''];
+    const back = ui.sheet && ui.sheet.type === 'avail' ? ui.sheet : null;   // the manager filling in for someone returns there
+    openSheet({ type: 'dayHours', emp: ds.emp, d, t, v: marks.length && marks.every(m => m[2] === 2) ? 2 : 1, had: marks.length > 0, err: '', back }, el.id);
+  },
+  dhV(ds) { ui.sheet.v = +ds.v; render(); },
+  dhSave() {
+    const s = ui.sheet, parts = dayParts(s.d, s.t[0], s.t[1]);
+    s.err = !s.t[0] || !s.t[1] ? 'צריך למלא שעת התחלה ושעת סיום.'
+      : !parts ? 'שעת הסיום צריכה להיות אחרי שעת ההתחלה, באותו יום.'
+      : !parts.length ? 'השעות האלה לא נופלות באף משמרת של היום.' : '';
+    if (s.err) { render(); return; }
+    const rec = availRec(ui.week, s.emp, true), on = new Set(parts.map(q => q.k));
+    for (const sh of state.shifts) { const k = sk(s.d, sh.id); if (!state.closed[k] && !on.has(k)) delete rec.slots[k]; }
+    for (const q of parts) rec.slots[q.k] = q.full ? s.v : { v: s.v, t: [q.t] };
+    ui.sheet = s.back || null;
+    render();
+  },
+  dhClear() {
+    const s = ui.sheet, rec = availRec(ui.week, s.emp, true);
+    for (const sh of state.shifts) delete rec.slots[sk(s.d, sh.id)];
+    ui.sheet = s.back || null;
+    render();
+  },
+  rankOpen(ds, el) { openSheet({ type: 'rank', id: ds.id }, el.id); },
+  rankOn() {
+    const r = roleById(ui.sheet.id);
+    r.rank = state.employees.filter(e => e.roles.includes(r.id)).map(e => e.id);
+    render();
+    const b = document.querySelector('.rank .btn:not([disabled])');
+    if (b) b.focus();
+  },
+  rankOff() { const r = roleById(ui.sheet.id); delete r.rank; render(); const b = $('#rankOn'); if (b) b.focus(); },
+  rankMove(ds) {
+    const r = roleById(ui.sheet.id), list = rankOrder(r), i = list.indexOf(ds.emp), j = i + +ds.dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    list[i] = list[j]; list[j] = ds.emp;
+    r.rank = list;
+    render();
+    // Keep the focus on the person who moved, even when they reached the top or the bottom.
+    const same = document.getElementById('rk-' + (+ds.dir < 0 ? 'up' : 'down') + '-' + ds.emp), other = document.getElementById('rk-' + (+ds.dir < 0 ? 'down' : 'up') + '-' + ds.emp);
+    const to = same && !same.disabled ? same : other;
+    if (to) to.focus();
+  },
   trAdd() { const s = ui.sheet; s.ranges.push(['', shiftById(unsk(s.k)[1]).end]); render(); const el = document.getElementById('tr-1-0'); if (el) el.focus(); },
   trDel(ds) { ui.sheet.ranges.splice(+ds.i, 1); render(); },
   trV(ds) { ui.sheet.v = +ds.v; render(); },
@@ -3458,6 +3608,7 @@ const actions = {
     }
     state.employees = state.employees.filter(e => e.id !== id);
     for (const wk in state.avail) delete state.avail[wk][id];
+    state.roles.forEach(r => { if (r.rank) { r.rank = r.rank.filter(x => x !== id); if (!r.rank.length) delete r.rank; } });
     ui.sheet = null;
     render();
     toast('העובד/ת נמחק/ה.');
@@ -3679,6 +3830,11 @@ document.addEventListener('input', e => {
   if (b.slice(0, 3) === 'cf.') { const q = b.split('.'), st = consentState(q[1]); if (st) (st.fields[q[2]] || (st.fields[q[2]] = {}))[q[3]] = v; return; }
   if (b === 'code.draft') { ui.codeDraft = v; return; }
   if (b === 'theme.custom') { state.theme = { preset: 'custom', custom: v }; applyTheme(); save(); return; }
+  if (b.slice(0, 3) === 'dh.') {
+    const sh = ui.sheet;
+    if (sh && sh.type === 'dayHours') { sh.t[+b.slice(3)] = v; const pv = $('#dhPrev'); if (pv) pv.innerHTML = dayPreview(sh.d, sh.t[0], sh.t[1]); }
+    return;
+  }
   if (b.slice(0, 3) === 'tr.') { const q = b.split('.'); if (ui.sheet && ui.sheet.ranges) ui.sheet.ranges[+q[1]][+q[2]] = v; return; }
   if (b.slice(0, 3) === 'dl.') return;
   if (b === 'draft.name' || b === 'draft.number') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft[b.slice(6)] = v; return; }

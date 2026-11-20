@@ -37,7 +37,7 @@ const spy = () => {
   s.check('the sign-in and the agreement are kept: no second agreement screen', !(await page.$('#agreeForm')) && (await L.txt(page, '#storeName')) === 'המכולת של סבתא');
   const copy = await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update') || 'null'));
   s.check('a copy of the data as it was before the update is set aside', !!copy && copy.data === old && copy.at > 0, copy && copy.data.length);
-  s.check('the data is now marked with the new version', now.app === '2.0.0' && (await L.txt(page, '.foot-v')) === 'סדרן 2.0.0', [now.app, await L.txt(page, '.foot-v')]);
+  s.check('the data is now marked with the new version', now.app === '2.1.0' && (await L.txt(page, '.foot-v')) === 'סדרן 2.1.0', [now.app, await L.txt(page, '.foot-v')]);
   await reload();
   s.check('the copy is made once, not on every visit', (await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update')).data)) === old);
 
@@ -165,7 +165,7 @@ const spy = () => {
   const file = path.join(L.BUILD, 'backup.json');
   await dl.saveAs(file);
   const bk = JSON.parse(fs.readFileSync(file, 'utf8'));
-  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '2.0.0' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
+  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '2.1.0' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
   s.check('the backup does not carry a sign-in', bk.data.prefs.session === null);
   // this is someone's own store: there is no "reset to the example" here to press by mistake
   s.check("a store with someone's own data offers no reset", !(await page.$('#cf-reset')));
@@ -290,17 +290,102 @@ const spy = () => {
   const names = await pp.$$eval('.day', days => days.slice(0, 3).map(d => (d.querySelector('.pos-n') || {}).textContent));
   s.check('available 16:00–19:00 in a 15:00–20:00 shift: scheduled automatically', names[0] === 'חלקי', names);
   s.check('all three positions are filled', (await L.txt(pp, '.sum-num .num')) === '3/3', await L.txt(pp, '.sum-num .num'));
-  s.check('when someone is free for the whole shift, they come first', names[1] === 'מלאה' && names[2] === 'מלאה', names);
+  s.check('someone there for part of the shift is placed like anyone else: asking for the shift wins it', names[1] === 'מלאה' && names[2] === 'חלקי', names);
   s.check('the roster shows the hours next to the name, not as a warning', (await L.txt(pp, '#day-0 .pos-h')) === 'בשעות 16:00–19:00' && !(await pp.$('.pos-w')) && !(await pp.$('.chip-warn')), await L.txt(pp, '#day-0 .pos'));
+  await pp.click('#day-2 .pos'); await pp.waitForSelector('#sheetRoot button.cand[data-emp="e_full"]');
+  await pp.click('#sheetRoot button.cand[data-emp="e_full"]');
+  await pp.waitForFunction(() => document.querySelector('#day-2 .pos-n').textContent === 'מלאה');
+  if (await pp.$('#sheetRoot .sheet')) await pp.keyboard.press('Escape');
   await pp.click('#day-2 .pos'); await pp.waitForSelector('#sheetRoot .sheet');
   const fitText = await L.txt(pp, '#sheetRoot .grp:nth-of-type(2), #sheetRoot .sheet-b');
   s.check('the position dialog offers the part-shift person as a fit, with the hours', /מתאימים למשמרת \(1\)/.test(await L.txt(pp, '#sheetRoot .sheet-b')) && /חלקי.*מעדיף\/ה את המשמרת בשעות 16:00–19:00/.test(fitText), fitText);
   await pp.click('#sheetRoot button.cand[data-emp="e_part"]');
   await pp.waitForFunction(() => document.querySelector('#day-2 .pos-n').textContent === 'חלקי');
   if (await pp.$('#sheetRoot .sheet')) await pp.keyboard.press('Escape');
-  s.check('assigning them by hand raises no warning either', !(await pp.$('.pos-w')) && (await L.txt(pp, '#day-2 .pos-h')) === 'בשעות 16:00–19:00', await L.txt(pp, '#day-2 .pos'));
+  s.check('assigned by hand, no warning either', !(await pp.$('.pos-w')) && (await L.txt(pp, '#day-2 .pos-h')) === 'בשעות 16:00–19:00', await L.txt(pp, '#day-2 .pos'));
   await pp.click('#tabsBottom .tab[data-view="availability"]');
   s.check('the shift is not listed as an expected shortage', /לכל תפקיד בכל משמרת יש מספיק זמינים/.test(await pp.textContent('#view')));
+  await pp.context().close();
+
+  // ---------- hours for a whole day, split across its shifts: 12:00–18:00 over 07–15 and 15–23
+  const dh = await L.demoPage(browser, s);
+  await dh.click('#ckNone');
+  await dh.evaluate(() => {
+    const st = JSON.parse(localStorage.getItem('sadran.v1')), wk = Object.keys(st.avail)[0];
+    st.roles = [{ id: 'r_a', name: 'קופה', color: 4 }];
+    st.shifts = [{ id: 's_am', name: 'בוקר', start: '07:00', end: '15:00' }, { id: 's_pm', name: 'ערב', start: '15:00', end: '23:00' }];
+    st.req = { s_am: { r_a: 1 }, s_pm: { r_a: 1 } };
+    st.closed = {};
+    for (let d = 1; d < 7; d++) { st.closed[d + '|s_am'] = true; st.closed[d + '|s_pm'] = true; }
+    st.employees = [{ id: 'e_day', name: 'יומי', number: '7101', roles: ['r_a'], max: 5 }, { id: 'e_am', name: 'בוקרית', number: '7102', roles: ['r_a'], max: 5 }, { id: 'e_pm', name: 'ערבי', number: '7103', roles: ['r_a'], max: 5 }];
+    st.avail = { [wk]: { e_am: { slots: { '0|s_am': 1 }, note: '', submittedAt: Date.now() }, e_pm: { slots: { '0|s_pm': 1 }, note: '', submittedAt: Date.now() } } };
+    st.weeks = {};
+    localStorage.setItem('sadran.v1', JSON.stringify(st));
+  });
+  await dh.reload(); await dh.waitForSelector('#signForm');
+  await dh.fill('#siName', 'יומי'); await dh.fill('#siNumber', '7101'); await dh.click('#btnSignIn'); await L.passGate(dh);
+  s.check('each open day has a button for its hours; closed days do not', !!(await dh.$('#avd-e_day-0')) && !(await dh.$('#avd-e_day-1')));
+  await dh.click('#avd-e_day-0'); await dh.waitForSelector('#dh-0');
+  await dh.fill('#dh-0', '12:00'); await dh.fill('#dh-1', '18:00');
+  s.check('the dialog shows how the hours fall into the shifts', /בוקר 12:00–15:00 · ערב 15:00–18:00/.test(await L.txt(dh, '#dhPrev')), await L.txt(dh, '#dhPrev'));
+  await dh.fill('#dh-1', '11:00');
+  s.check('an end before the start is caught as it is typed', /אחרי שעת ההתחלה/.test(await L.txt(dh, '#dhPrev')));
+  await dh.click('#dhSave');
+  s.check('and refused on saving', /אחרי שעת ההתחלה/.test(await L.txt(dh, '#sheetRoot .err')));
+  await dh.fill('#dh-1', '18:00'); await dh.click('#dhV2'); await dh.click('#dhSave');
+  await dh.waitForFunction(() => !document.querySelector('#sheetRoot .sheet'));
+  const daySlots = await dh.evaluate(() => { const st = JSON.parse(localStorage.getItem('sadran.v1')); return st.avail[Object.keys(st.avail)[0]].e_day.slots; });
+  s.check('stored as part of each shift, ending and starting at the shift change', JSON.stringify(daySlots) === JSON.stringify({ '0|s_am': { v: 2, t: [['12:00', null]] }, '0|s_pm': { v: 2, t: [[null, '18:00']] } }), daySlots);
+  s.check('the grid shows the hours in both shifts', (await L.txt(dh, '#av-e_day-0\\|s_am .av-h')) === '12:00–15:00' && (await L.txt(dh, '#av-e_day-0\\|s_pm .av-h')) === '15:00–18:00');
+  await dh.click('#avd-e_day-0'); await dh.waitForSelector('#dh-0');
+  s.check('opening it again shows the same hours, and a way to clear the day', (await dh.inputValue('#dh-0')) === '12:00' && (await dh.inputValue('#dh-1')) === '18:00' && (await dh.getAttribute('#dhV2', 'aria-pressed')) === 'true' && !!(await dh.$('#dhClear')));
+  await dh.fill('#dh-0', '06:00'); await dh.fill('#dh-1', '13:00'); await dh.click('#dhSave');
+  await dh.waitForFunction(() => !document.querySelector('#sheetRoot .sheet'));
+  const morning = await dh.evaluate(() => { const st = JSON.parse(localStorage.getItem('sadran.v1')); return st.avail[Object.keys(st.avail)[0]].e_day.slots; });
+  s.check('hours that leave a shift out remove it; hours outside the shifts are cut to them', JSON.stringify(morning) === JSON.stringify({ '0|s_am': { v: 2, t: [[null, '13:00']] } }), morning);
+  await dh.click('#avd-e_day-0'); await dh.waitForSelector('#dh-0');
+  await dh.fill('#dh-0', '12:00'); await dh.fill('#dh-1', '18:00'); await dh.click('#dhV1'); await dh.click('#dhSave');
+  await dh.waitForFunction(() => !document.querySelector('#sheetRoot .sheet'));
+  await dh.click('#btnSubmit'); await dh.waitForSelector('.toast');
+  await L.overflow(dh, s, 'availability with day buttons');
+  await dh.click('#btnOut'); await dh.waitForSelector('#signForm');
+  await dh.click('#segMgr'); await dh.fill('#siCode', '2468'); await dh.click('#btnSignIn'); await L.passGate(dh);
+  // the others are free for whole shifts; give the day person priority, so both shifts go to him
+  await dh.click('#tabsBottom .tab[data-view="setup"]');
+  await dh.click('#rkb-r_a'); await dh.waitForSelector('#rankOn');
+  s.check('a role starts with no order of priority', /אין סדר עדיפות/.test(await L.txt(dh, '#sheetRoot .sheet-b')));
+  await dh.click('#rankOn');
+  const order = async () => dh.$$eval('.rank-name', e => e.map(x => x.textContent));
+  s.check('setting an order lists everyone in the role', (await order()).join('|') === 'יומי|בוקרית|ערבי', await order());
+  s.check('the first cannot move up, the last cannot move down', await dh.isDisabled('#rk-up-e_day') && await dh.isDisabled('#rk-down-e_pm'));
+  await dh.click('#rk-down-e_day');
+  s.check('moving someone down', (await order()).join('|') === 'בוקרית|יומי|ערבי' && (await dh.evaluate(() => document.activeElement.id)) === 'rk-down-e_day', await order());
+  await dh.click('#rk-up-e_day');
+  s.check('and back up; the focus stays with them at the top', (await order()).join('|') === 'יומי|בוקרית|ערבי' && (await dh.evaluate(() => document.activeElement.id)) === 'rk-down-e_day', await dh.evaluate(() => document.activeElement.id));
+  await dh.keyboard.press('Escape');
+  s.check('the settings show the order', /עדיפות: 1\. יומי · 2\. בוקרית · 3\. ערבי/.test(await L.txt(dh, '#view')));
+  await dh.click('#tabsBottom .tab[data-view="schedule"]');
+  let runs = [];
+  for (let i = 0; i < 5; i++) {
+    await dh.click('#btnAuto');
+    runs.push(await dh.$$eval('#day-0 .pos', ps => ps.map(p => p.querySelector('.pos-n').textContent + ' ' + ((p.querySelector('.pos-h') || {}).textContent || '')).join(' | ')));
+  }
+  s.check('first in priority, available 12:00–18:00: placed in both shifts, every time, with his hours', runs.every(g => g === 'יומי בשעות 12:00–15:00 | יומי בשעות 15:00–18:00'), runs);
+  // the order turned around: the whole-shift people come first
+  await dh.click('#tabsBottom .tab[data-view="setup"]');
+  await dh.click('#rkb-r_a'); await dh.waitForSelector('.rank');
+  await dh.click('#rk-down-e_day'); await dh.click('#rk-down-e_day');
+  await dh.keyboard.press('Escape');
+  await dh.click('#tabsBottom .tab[data-view="schedule"]');
+  runs = [];
+  for (let i = 0; i < 5; i++) { await dh.click('#btnAuto'); runs.push(await dh.$$eval('#day-0 .pos-n', ps => ps.map(p => p.textContent).join('|'))); }
+  s.check('last in priority: the others take the shifts, every time', runs.every(g => g === 'בוקרית|ערבי'), runs);
+  // the order is the manager's: a backup keeps it, an employee never gets it
+  const kept = await dh.evaluate(() => JSON.parse(localStorage.getItem('sadran.v1')).roles[0].rank);
+  s.check('the order is stored with the role', JSON.stringify(kept) === JSON.stringify(['e_am', 'e_pm', 'e_day']), kept);
+  await dh.click('#tabsBottom .tab[data-view="setup"]');
+  await dh.click('#rkb-r_a'); await dh.waitForSelector('#rankOff'); await dh.click('#rankOff'); await dh.keyboard.press('Escape');
+  s.check('the order can be removed', !(await dh.evaluate(() => 'rank' in JSON.parse(localStorage.getItem('sadran.v1')).roles[0])) && !/עדיפות: 1/.test(await L.txt(dh, '#view')));
   await browser.close();
   process.exit(s.report() ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

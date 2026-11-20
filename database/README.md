@@ -40,11 +40,14 @@ Inside the Claude viewer, pages cannot reach outside services, so the site runs 
 - **Colour theme** for everyone: seven presets or any colour. The site derives the rest from it and keeps text readable in light and dark. Each person can also switch their own device between light, dark and the device setting with the button at the top of the screen.
 - **Role colours**: 12 highlight colours.
 - **Per employee** (in צוות): the roles they can fill and the most shifts a week, from 1 up to every shift in the week (14 with two shifts a day).
+- **Order of priority per role** (**סדר עדיפות** under each role): who is placed first in that role. Automatic scheduling gives a role's positions to the highest person in its order who is available, has the role and is under their weekly maximum, before anyone lower. Without an order, everyone in the role is equal and the work is spread by availability and load. The order is stored with the role in the store's settings; employees never receive it.
 - **Two shifts on the same day are normal.** Anyone who marked both shifts of a day as available can be given both, as long as the two do not overlap. The minimum rest between shifts applies between different days (an evening, then the next morning) and to a third shift on one day. The site does not check daily working hours against the law.
 - **Export style** for the roster as PDF or JPEG: colourful, light, dark, or print (black on white). Both the manager (any week, marked "טיוטה" if not published as shown) and employees (published weeks) can save the roster as a file. The exported roster shows names and hours only, without roles.
 - **Availability deadline**: a day and time in the week before. Employees see it on their availability screen.
 
-Employees can mark a shift as possible or preferred, and with the clock button, limit it to specific hours: up to two ranges inside the shift, for example 11:30–13:50, or 16:30 to the end of the shift. A range that ends at the shift's end follows the shift if its hours change. Someone available for part of a shift can be scheduled in it, automatically or by hand, and the roster shows their hours next to their name. People free for the whole shift are placed first.
+Employees can mark a shift as possible or preferred, and with the clock button, limit it to specific hours: up to two ranges inside the shift, for example 11:30–13:50, or 16:30 to the end of the shift. A range that ends at the shift's end follows the shift if its hours change.
+
+They can also give hours for a whole day (**שעות** under the day): 12:00–18:00 with a 07:00–15:00 morning and a 15:00–23:00 evening marks the morning from 12:00 and the evening until 18:00. Someone available for part of a shift is scheduled like anyone else, automatically or by hand, and the roster, the employee's own shifts and the exported file show their hours under their name.
 
 ## Reminders
 

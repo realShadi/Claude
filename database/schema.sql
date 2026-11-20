@@ -621,6 +621,16 @@ language sql volatile security definer set search_path = '' as $$
   delete from sadran.sessions where token_hash = sadran.hash_token(p_token);
 $$;
 
+-- The settings as employees get them: without the order of priority the manager set in each role,
+-- which is the manager's own assessment of the team.
+create or replace function sadran.config_for_employees(p_config jsonb) returns jsonb
+language sql immutable set search_path = '' as $$
+  select case when jsonb_typeof(p_config -> 'roles') = 'array'
+    then jsonb_set(p_config, '{roles}', coalesce((select jsonb_agg(r.value - 'rank' order by r.ord)
+                                                    from jsonb_array_elements(p_config -> 'roles') with ordinality r(value, ord)), '[]'::jsonb))
+    else p_config end
+$$;
+
 -- Everything the signed-in person may see, in their store only. Employees get their own
 -- availability, published rosters and their teammates' names; the manager gets it all.
 create or replace function public.sadran_load(p_token text) returns jsonb
@@ -657,7 +667,8 @@ begin
     into wk from sadran.weeks w
    where w.store_id = s.store_id and w.week >= since and (mgr or w.published is not null);
   return jsonb_build_object('role', s.role, 'me', s.employee_id, 'store', st.id,
-                            'config', jsonb_set(st.config, '{store}', jsonb_build_object('name', st.name)),
+                            'config', jsonb_set(case when mgr then st.config else sadran.config_for_employees(st.config) end,
+                                                '{store}', jsonb_build_object('name', st.name)),
                             'employees', emps, 'avail', av, 'weeks', wk,
                             'logoVer', sadran.ms(st.logo_updated_at),
                             'consents', sadran.consents_of(s.store_id, coalesce(s.employee_id, 'manager')));
