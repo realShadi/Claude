@@ -426,6 +426,69 @@ begin
                    join sadran.push_subscriptions p on p.store_id = s.store_id and p.employee_id = e.id));
 end $$;
 
+-- Notifications the manager sends from the site, through the sadran-remind function:
+--   'test'      p_arg = an employee id, or 'manager' for the manager's own devices: a test message.
+--   'published' p_arg = a week (YYYY-MM-DD) whose roster is published: every employee with
+--               notifications on hears about it, with how many shifts they have that week.
+-- Returns the messages to send, and who could and could not be reached.
+create or replace function sadran.notify(p_token text, p_kind text, p_arg text) returns jsonb
+language plpgsql volatile set search_path = '' as $$
+declare
+  s sadran.sessions;
+  store text;
+  wk date;
+  pub jsonb;
+  who text;
+begin
+  s := sadran.auth(p_token, 'manager');
+  select name into store from sadran.stores where id = s.store_id;
+  if p_kind = 'test' then
+    if p_arg = 'manager' then
+      who := 'המנהל/ת';
+    else
+      select name into who from sadran.employees where store_id = s.store_id and id = p_arg;
+      if who is null then raise exception 'bad_input'; end if;
+    end if;
+    return jsonb_build_object(
+      'messages', (select coalesce(jsonb_agg(jsonb_build_object(
+                     'endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth, 'title', store,
+                     'body', 'התראת בדיקה: ההתראות של ' || store || ' מגיעות למכשיר הזה.',
+                     'url', './?store=' || s.store_id || case when p_arg = 'manager' then '#setup' else '#my-availability' end,
+                     'tag', 'test')), '[]'::jsonb)
+                     from sadran.push_subscriptions p
+                    where p.store_id = s.store_id
+                      and case when p_arg = 'manager' then p.role = 'manager' else p.employee_id = p_arg end),
+      'reached', case when exists (select 1 from sadran.push_subscriptions p where p.store_id = s.store_id
+                                     and case when p_arg = 'manager' then p.role = 'manager' else p.employee_id = p_arg end)
+                      then jsonb_build_array(who) else '[]'::jsonb end,
+      'unreachable', case when not exists (select 1 from sadran.push_subscriptions p where p.store_id = s.store_id
+                                             and case when p_arg = 'manager' then p.role = 'manager' else p.employee_id = p_arg end)
+                          then jsonb_build_array(who) else '[]'::jsonb end);
+  elsif p_kind = 'published' then
+    if p_arg !~ '^\d{4}-\d{2}-\d{2}$' then raise exception 'bad_input'; end if;
+    wk := p_arg::date;
+    select published into pub from sadran.weeks where store_id = s.store_id and week = wk;
+    if pub is null then raise exception 'bad_input'; end if;
+    return jsonb_build_object(
+      'messages', (select coalesce(jsonb_agg(jsonb_build_object(
+                     'endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth, 'title', store,
+                     'body', 'הסידור לשבוע ' || sadran.week_label(wk) || ' פורסם. ' ||
+                             case n.c when 0 then 'השבוע אין לך משמרות.' when 1 then 'יש לך משמרת אחת.' else 'יש לך ' || n.c || ' משמרות.' end,
+                     'url', './?store=' || s.store_id || '#my-shifts', 'tag', 'published-' || wk)), '[]'::jsonb)
+                     from sadran.employees e
+                     join sadran.push_subscriptions p on p.store_id = s.store_id and p.employee_id = e.id
+                     cross join lateral (select count(*) c from jsonb_each(coalesce(pub -> 'slots', '{}'::jsonb)) x,
+                                                jsonb_array_elements(x.value) q where q ->> 'emp' = e.id) n
+                    where e.store_id = s.store_id),
+      'reached', (select coalesce(jsonb_agg(e.name order by e.name), '[]'::jsonb) from sadran.employees e
+                   where e.store_id = s.store_id and exists (select 1 from sadran.push_subscriptions p where p.store_id = s.store_id and p.employee_id = e.id)),
+      'unreachable', (select coalesce(jsonb_agg(e.name order by e.name), '[]'::jsonb) from sadran.employees e
+                       where e.store_id = s.store_id and not exists (select 1 from sadran.push_subscriptions p where p.store_id = s.store_id and p.employee_id = e.id)));
+  end if;
+  raise exception 'bad_input';
+end $$;
+revoke all on function sadran.notify(text, text, text) from public, anon, authenticated;
+
 -- A push service said this subscription no longer exists.
 create or replace function sadran.push_drop(p_endpoint text) returns void
 language sql volatile set search_path = '' as $$

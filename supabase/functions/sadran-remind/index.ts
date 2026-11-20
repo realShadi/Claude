@@ -6,6 +6,12 @@
 // POST {"token": "...", "week": "YYYY-MM-DD"}
 //                                 The manager's "send a reminder now". The token is the manager's
 //                                 Sadran session; the database checks it.
+// POST {"token": "...", "kind": "test", "arg": "<employee id>" | "manager"}
+//                                 A test notification to one person's devices.
+// POST {"token": "...", "kind": "published", "arg": "YYYY-MM-DD"}
+//                                 The roster of that week was published: tells every employee
+//                                 with notifications on, with how many shifts they have.
+//                                 Both are built by sadran.notify(), which checks the manager's token.
 //
 // Deploy without JWT verification (the site signs in with its own sessions):
 //   supabase functions deploy sadran-remind --no-verify-jwt
@@ -56,9 +62,15 @@ async function deliver(messages: Message[]) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'POST') return reply({ error: 'method' }, 405);
-  let input: { cron?: boolean; token?: string; week?: string } = {};
+  let input: { cron?: boolean; token?: string; week?: string; kind?: string; arg?: string } = {};
   try { input = await req.json(); } catch { /* empty body */ }
   try {
+    if (input.token && input.kind) {
+      if (!/^(test|published)$/.test(input.kind) || typeof input.arg !== 'string' || input.arg.length > 60) return reply({ error: 'input' }, 400);
+      const [{ r }] = await sql`select sadran.notify(${input.token}, ${input.kind}, ${input.arg}) as r`;
+      const result = await deliver(r.messages ?? []);
+      return reply({ ...result, reached: r.reached, unreachable: r.unreachable });
+    }
     if (input.token) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(input.week ?? '')) return reply({ error: 'week' }, 400);
       const [{ r }] = await sql`select sadran.reminders_manual(${input.token}, ${input.week}::date) as r`;
@@ -70,6 +82,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     const msg = String((e as Error)?.message ?? e);
     if (/^(auth|forbidden)$/.test(msg)) return reply({ error: 'auth' }, 401);
+    if (msg === 'bad_input') return reply({ error: 'input' }, 400);
     console.error(msg);
     return reply({ error: 'server' }, 500);
   }

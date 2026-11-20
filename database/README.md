@@ -53,6 +53,9 @@ They can also give hours for a whole day (**שעות** under the day): 12:00–1
 
 When the deadline for next week has passed, everyone who has not submitted availability and has turned notifications on gets a browser notification, once per week. The manager's devices with notifications on get a list of who has not submitted. In **זמינות**, **שליחת התראה** sends a reminder right away, and says who could not be reached.
 
+- **Publishing a roster** tells every employee with notifications on that it is out, with how many shifts they have that week. The manager is told how many people it reached.
+- **בדיקת התראות** in the settings sends a test notification to one employee's devices, or to the manager's own, and says whether it arrived or that the person has not switched notifications on.
+- Both go through the same function (`{"kind": "published" | "test"}`), built by `sadran.notify()`, which checks the manager's sign-in and works only inside that store.
 - Employees turn notifications on at the bottom of their availability screen; the manager at the deadline card in the settings. Signing out turns them off on that device.
 - **iPhone and iPad**: notifications work only when the site was added to the home screen (Safari: Share, Add to Home Screen) and is opened from there. The site explains this on those devices.
 - Android, and desktop Chrome, Edge and Firefox, work in the browser.

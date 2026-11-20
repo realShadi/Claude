@@ -17,7 +17,7 @@ const STORE_ID_KEY = 'sadran.store';  // hosted site: the store this device last
 const SEED_NAME = 'מרכול השכונה';
 const SEED_IDS = ['e_noa', 'e_yosi', 'e_michal', 'e_shadi', 'e_dana', 'e_tamar', 'e_linoy', 'e_omer', 'e_ron', 'e_ahmad', 'e_ella'];
 const DEMO_CODE = '2468';
-const APP_VERSION = '2.1.1';
+const APP_VERSION = '2.2.0';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 // The shared database. The key is the project's publishable key, which is meant to sit in a web page:
 // it only lets the page call the sadran_* functions, and each of those checks who is signed in.
@@ -866,8 +866,8 @@ function pushCard(who) {
   if (!REMOTE) return '';
   const st = push.state, mgr = who === 'manager';
   const text = {
-    on: mgr ? 'ההתראות פועלות במכשיר הזה: כשהמועד עובר תגיע רשימה של מי שלא הגיש/ה.' : 'ההתראות פועלות במכשיר הזה. אם המועד להגשה יעבור לפני שהגשת, תגיע תזכורת.',
-    off: mgr ? 'אפשר לקבל במכשיר הזה התראה עם רשימת מי שלא הגיש/ה בזמן.' : 'אפשר לקבל תזכורת בטלפון אם המועד להגשה עובר ועוד לא הגשת.',
+    on: mgr ? 'ההתראות פועלות במכשיר הזה: כשהמועד עובר תגיע רשימה של מי שלא הגיש/ה.' : 'ההתראות פועלות במכשיר הזה: תגיע הודעה כשמתפרסם סידור, ותזכורת אם המועד להגשה יעבור לפני שהגשת.',
+    off: mgr ? 'אפשר לקבל במכשיר הזה התראה עם רשימת מי שלא הגיש/ה בזמן.' : 'אפשר לקבל בטלפון הודעה כשמתפרסם סידור, ותזכורת אם המועד להגשה עובר ועוד לא הגשת.',
     denied: 'ההתראות חסומות בדפדפן הזה. אפשר לאשר אותן בהגדרות האתר בדפדפן, ואז לחזור לכאן.',
     ios: 'באייפון ההתראות עובדות רק מהאתר שנוסף למסך הבית: בספארי מקישים על "שיתוף", בוחרים "הוספה למסך הבית", ופותחים את האתר משם.',
     unsupported: 'הדפדפן הזה לא תומך בהתראות. אפשר לנסות בכרום או בספארי עדכני.',
@@ -878,12 +878,14 @@ function pushCard(who) {
   return '<div class="push-row"><span class="push-st is-' + st + '">' + icon('bell') + '</span><p class="sub">' + text + '</p>' + btn + '</div>' +
     (st === 'off' || st === 'on' ? legalNote('הפעלת ההתראות שומרת מזהה של הדפדפן הזה, כדי לשלוח אליו תזכורות.', 'lnPush') : '');
 }
-async function callRemind(week) {
+const callRemind = week => callNotify({ week });
+// The sadran-remind function, with the manager's sign-in: reminders, test notifications, a published roster.
+async function callNotify(what) {
   let res, d = null;
   try {
     res = await fetch(BACKEND.url + '/functions/v1/sadran-remind', {
       method: 'POST', headers: { apikey: BACKEND.key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: net.token, week }),
+      body: JSON.stringify(Object.assign({ token: net.token }, what)),
     });
     d = await res.json().catch(() => null);
   } catch (e) { throw { code: 'network' }; }
@@ -1405,7 +1407,7 @@ function viewSetup() {
     '<button type="button" class="btn" id="btnLogo" data-act="logoPick"' + (ui.logoBusy ? ' disabled' : '') + '>' + icon('image') + (ui.logoBusy ? 'שומר…' : state.logo ? 'החלפת הלוגו' : 'העלאת לוגו') + '</button>' +
     (state.logo ? '<button type="button" class="btn btn-quiet btn-danger" id="btnLogoDel" data-act="logoDel"' + (ui.logoBusy ? ' disabled' : '') + '>הסרה</button>' : '') + '</div>' +
     '<p class="sub">PNG, JPEG, WebP או SVG. הלוגו מופיע בראש האתר, במסך הכניסה ובקבצים שמייצאים מהסידור.</p></div></section>' +
-    themeCard() + exportCard() + deadlineCard() + legalCard() +
+    themeCard() + exportCard() + deadlineCard() + notifyCard() + legalCard() +
     (REMOTE
       ? '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם קוד המנהל/ת. החלפת הקוד מנתקת מכשירים אחרים שנכנסו כמנהל/ת.</p></div>' +
         '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת חדש (6 עד 12 ספרות)</label>' +
@@ -1479,6 +1481,17 @@ function secretField(id, label, bind, value, autocomplete) {
 /* ---------- backup (demo) ----------
    A backup file holds everything: settings, team, availability and rosters. Loading one replaces
    what is here, after setting the current data aside. */
+// Hosted site: send a test notification to one person, to check that their notifications arrive.
+function notifyCard() {
+  if (!REMOTE) return '';
+  const who = ui.ntWho || 'manager';
+  return '<section class="card stack"><div><h2 class="h2">בדיקת התראות</h2><p class="sub">שולחים התראת בדיקה לעובד/ת מסוים/ת, או למכשירים שלך, כדי לוודא שההתראות מגיעות. ' +
+    'ההתראה מגיעה לכל מכשיר שבו האדם הפעיל התראות. כשמפרסמים סידור, כל מי שהפעיל/ה התראות מקבל/ת הודעה עם מספר המשמרות שלו/ה.</p></div>' +
+    '<div class="code-row"><div class="field"><label class="label" for="ntWho">למי לשלוח</label><select class="input" id="ntWho" data-bind="nt.who">' +
+    '<option value="manager"' + (who === 'manager' ? ' selected' : '') + '>המכשירים שלי (מנהל/ת)</option>' +
+    state.employees.map(e => '<option value="' + esc(e.id) + '"' + (who === e.id ? ' selected' : '') + '>' + esc(e.name) + '</option>').join('') + '</select></div>' +
+    '<button type="button" class="btn" id="btnNotifyTest" data-act="notifyTest"' + (net.busy ? ' disabled' : '') + '>' + icon('bell') + (ui.ntBusy ? 'שולח…' : 'שליחת התראת בדיקה') + '</button></div></section>';
+}
 function backupCard() {
   const last = ['reset', 'restore'].map(w => ({ w, c: kept(w) })).filter(x => x.c).sort((a, b) => b.c.at - a.c.at)[0];
   return '<section class="card stack"><div><h2 class="h2">גיבוי הנתונים</h2>' +
@@ -1969,7 +1982,7 @@ const SHEETS = {
     const wk = ui.week, st = weekStats(wk, state.weeks[wk].slots);
     return {
       title: 'פרסום הסידור לצוות', sub: 'שבוע ' + ltr(weekLabel(wk)),
-      body: '<p>אחרי הפרסום כל עובד/ת יראה את המשמרות שלו/ה בלשונית "המשמרות שלי".</p>' +
+      body: '<p>אחרי הפרסום כל עובד/ת יראה את המשמרות שלו/ה בלשונית "המשמרות שלי"' + (REMOTE ? ', ומי שהפעיל/ה התראות יקבל/ת הודעה' : '') + '.</p>' +
         (st.missing ? '<p class="banner banner-warn">' + icon('alert') + '<span>' + many(st.missing, 'עמדה אחת עדיין', 'עמדות עדיין') + ' בלי שיבוץ. אפשר לפרסם עכשיו ולהשלים אחר כך.</span></p>'
           : '<p class="banner banner-ok">' + icon('check') + '<span>כל ' + st.total + ' העמדות מאוישות.</span></p>') +
         (st.warns ? '<p class="banner banner-warn">' + icon('alert') + '<span>' + many(st.warns, 'אזהרה אחת פתוחה', 'אזהרות פתוחות') + ' בסידור.</span></p>' : ''),
@@ -3381,13 +3394,46 @@ const actions = {
   undoMenu() { ui.sheet = null; actions.undo(); toast('הפעולה האחרונה בוטלה.'); },
   more() { openSheet({ type: 'more' }); },
   publish() { openSheet({ type: 'publish' }); },
-  publishGo() {
-    const w = state.weeks[ui.week];
+  async publishGo() {
+    const wk = ui.week, w = state.weeks[wk];
     w.published = { at: Date.now(), slots: clone(w.slots) };
     ui.sheet = null;
     render();
-    if (REMOTE) flushKey('w:' + ui.week);
-    toast('הסידור פורסם. העובדים רואים אותו בלשונית "המשמרות שלי".');
+    const done = 'הסידור פורסם. העובדים רואים אותו בלשונית "המשמרות שלי".';
+    if (!REMOTE) { toast(done); return; }
+    // Once the roster is saved, everyone with notifications on hears about it.
+    if (!(await flushKey('w:' + wk))) { toast(done + ' ההתראה לצוות לא נשלחה, כי אין כרגע חיבור לשרת.'); return; }
+    let d = null;
+    try { d = await callNotify({ kind: 'published', arg: wk }); }
+    catch (err) { if (err.code === 'auth') { endSession('expired'); return; } }
+    if (!d) { toast(done + ' שליחת ההתראה לצוות לא הצליחה.'); return; }
+    const n = d.reached.length, m = d.unreachable.length;
+    if (n && !d.sent) { toast(done + ' לא הצלחתי להגיע למכשירים של העובדים. ייתכן שההתראות כובו בהם.'); return; }
+    toast(done + ' ' + (n ? many(n, 'עובד/ת אחד/ת קיבל/ה התראה', 'עובדים קיבלו התראה') + '.' : 'אף עובד/ת עוד לא הפעיל/ה התראות.') +
+      (n && m ? ' ' + many(m, 'עובד/ת אחד/ת עוד לא הפעיל/ה התראות', 'עובדים עוד לא הפעילו התראות') + '.' : ''));
+  },
+  async notifyTest() {
+    if (net.busy) return;
+    const who = ui.ntWho || 'manager', me = who === 'manager';
+    net.busy = true; ui.ntBusy = true;
+    render();
+    let d = null, msg = '';
+    try { d = await callNotify({ kind: 'test', arg: who }); }
+    catch (err) {
+      net.busy = false; ui.ntBusy = false;
+      if (err.code === 'auth') { endSession('expired'); return; }
+      msg = err.code === 'network' ? NET_ERR : 'שליחת ההתראה לא הצליחה. אפשר לנסות שוב בעוד רגע.';
+    }
+    net.busy = false; ui.ntBusy = false;
+    render();
+    if (d) {
+      const name = me ? '' : esc((empById(who) || {}).name || '');
+      msg = d.unreachable.length
+        ? (me ? 'ההתראות לא מופעלות באף מכשיר שלך. אפשר להפעיל אותן בכרטיס "מועד להגשת זמינות".' : name + ' עוד לא הפעיל/ה התראות באף מכשיר. ההפעלה נמצאת בתחתית מסך הזמינות שלו/ה.')
+        : d.sent ? 'התראת בדיקה נשלחה ' + (me ? 'למכשירים שלך' : 'ל' + name) + (d.sent > 1 ? ' (' + d.sent + ' מכשירים)' : '') + '.'
+        : 'לא הצלחתי להגיע ' + (me ? 'למכשירים שלך' : 'למכשירים של ' + name) + '. ייתכן שההתראות כובו בהם; כדאי להפעיל אותן מחדש.';
+    }
+    toast(msg);
   },
   unpublish() { state.weeks[ui.week].published = null; ui.sheet = null; render(); toast('הפרסום בוטל.'); },
   share() { openSheet({ type: 'share', title: 'הסידור כטקסט', sub: 'להדבקה בקבוצת הצוות', text: shareText(ui.week) }, 'btnMore'); },
@@ -3829,6 +3875,7 @@ document.addEventListener('input', e => {
   if (b === 'store.draft') { ui.storeDraft = v; return; }
   if (b.slice(0, 3) === 'cf.') { const q = b.split('.'), st = consentState(q[1]); if (st) (st.fields[q[2]] || (st.fields[q[2]] = {}))[q[3]] = v; return; }
   if (b === 'code.draft') { ui.codeDraft = v; return; }
+  if (b === 'nt.who') { ui.ntWho = v; return; }
   if (b === 'theme.custom') { state.theme = { preset: 'custom', custom: v }; applyTheme(); save(); return; }
   if (b.slice(0, 3) === 'dh.') {
     const sh = ui.sheet;

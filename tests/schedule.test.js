@@ -37,7 +37,7 @@ const spy = () => {
   s.check('the sign-in and the agreement are kept: no second agreement screen', !(await page.$('#agreeForm')) && (await L.txt(page, '#storeName')) === 'המכולת של סבתא');
   const copy = await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update') || 'null'));
   s.check('a copy of the data as it was before the update is set aside', !!copy && copy.data === old && copy.at > 0, copy && copy.data.length);
-  s.check('the data is now marked with the new version', now.app === '2.1.1' && (await L.txt(page, '.foot-v')) === 'סדרן 2.1.1', [now.app, await L.txt(page, '.foot-v')]);
+  s.check('the data is now marked with the new version', now.app === '2.2.0' && (await L.txt(page, '.foot-v')) === 'סדרן 2.2.0', [now.app, await L.txt(page, '.foot-v')]);
   await reload();
   s.check('the copy is made once, not on every visit', (await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update')).data)) === old);
 
@@ -165,7 +165,7 @@ const spy = () => {
   const file = path.join(L.BUILD, 'backup.json');
   await dl.saveAs(file);
   const bk = JSON.parse(fs.readFileSync(file, 'utf8'));
-  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '2.1.1' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
+  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '2.2.0' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
   s.check('the backup does not carry a sign-in', bk.data.prefs.session === null);
   // this is someone's own store: there is no "reset to the example" here to press by mistake
   s.check("a store with someone's own data offers no reset", !(await page.$('#cf-reset')));
