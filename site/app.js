@@ -13,7 +13,7 @@ const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 
 const DAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const STORE_KEY = 'sadran.v1';
 const DEMO_CODE = '2468';
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 // The shared database. The key is the project's publishable key, which is meant to sit in a web page:
 // it only lets the page call the sadran_* functions, and each of those checks who is signed in.
@@ -296,6 +296,7 @@ function load() {
 function migrate(s) {
   if (s.v === 1) { s.example = true; s.v = 2; }
   s.app = APP_VERSION;
+  s.employees.forEach(e => { delete e.double; });   // a per-person option that no longer exists: two shifts a day are normal
   s.prefs = s.prefs || { demoNote: true };
   delete s.prefs.mode;
   delete s.prefs.me;
@@ -415,7 +416,7 @@ async function rpc(fn, args, keepalive) {
 const cfgOf = () => ({ store: state.store, roles: state.roles, shifts: state.shifts, req: state.req, closed: state.closed, rules: state.rules, theme: state.theme, exportStyle: state.exportStyle });
 const weekOf = w => ({ slots: w.slots || {}, over: w.over || {}, published: w.published || null });
 const availOf = r => ({ slots: r.slots || {}, note: r.note || '', submitted: !!r.submittedAt });
-const empOf = e => ({ id: e.id, name: e.name, roles: e.roles, max: e.max, double: !!e.double });
+const empOf = e => ({ id: e.id, name: e.name, roles: e.roles, max: e.max });
 function weekHasContent(w) {
   if (w.published || Object.keys(w.over || {}).length) return true;
   for (const k in w.slots) if (w.slots[k].some(p => p.emp)) return true;
@@ -814,19 +815,23 @@ function span(d, shId) {
   const a = mins(s.start), b = mins(s.end);
   return [d * 1440 + a, d * 1440 + (b > a ? b : b + 1440)];
 }
-// Would a shift on day d sit too close to one the person already has?
-// Someone marked as fine with two shifts a day may take a second one that day, as long as the two
-// do not overlap. Everything else follows the minimum rest the manager set.
-function tooClose(emp, mine, d, shId) {
+// What stands between a shift on day d and the shifts the person already has: 'overlap' when two run
+// at the same time, 'rest' when the break between them is shorter than the manager allows.
+// Two shifts on the same day are normal and need no break between them; the rest rule is about
+// different days (an evening, then the next morning), and about a third shift on one day.
+function clash(mine, d, shId) {
   const B = span(d, shId);
-  if (!B) return false;
+  if (!B) return null;
   const today = mine.filter(m => m.d === d).length;
-  return mine.some(m => {
+  let out = null;
+  for (const m of mine) {
     const A = span(m.d, m.sh);
-    if (!A) return false;
+    if (!A) continue;
     const gap = Math.max(B[0] - A[1], A[0] - B[1]);
-    return emp.double && m.d === d && today < 2 ? gap < 0 : gap < state.rules.minRest * 60;
-  });
+    if (gap < 0) return 'overlap';
+    if (!(m.d === d && today < 2) && gap < state.rules.minRest * 60) out = 'rest';
+  }
+  return out;
 }
 // The most shifts one person can be given in a week: every shift there is.
 const maxCap = () => Math.max(7, 7 * state.shifts.length);
@@ -851,17 +856,18 @@ function issues(wk, d, shId, roleId, emp, self) {
   else if (!slotV(av.slots[k])) out.push('unavail');   // marked for part of the shift counts as available; the hours are shown
   const mine = empShifts(w, emp.id, self);
   if (mine.some(m => m.k === k)) out.push('inslot');
-  else if (tooClose(emp, mine, d, shId)) out.push('rest');
+  else { const c = clash(mine, d, shId); if (c) out.push(c); }
   if (mine.length + 1 > emp.max) out.push('max');
   return out;
 }
-const ISSUE_SHORT = { norole: 'לא בתפקיד', nosubmit: 'לא הוגשה זמינות', unavail: 'לא זמין/ה', rest: 'מנוחה קצרה', inslot: 'כפול במשמרת' };
+const ISSUE_SHORT = { norole: 'לא בתפקיד', nosubmit: 'לא הוגשה זמינות', unavail: 'לא זמין/ה', rest: 'מנוחה קצרה', overlap: 'חופף למשמרת אחרת', inslot: 'כפול במשמרת' };
 function issueText(z, e) {
   if (z === 'norole') return 'לא מוגדר/ת לתפקיד הזה';
   if (z === 'nosubmit') return 'טרם הגיש/ה זמינות';
   if (z === 'unavail') return 'לא זמין/ה במשמרת הזו';
   if (z === 'inslot') return 'כבר משובץ/ת במשמרת הזו';
-  if (z === 'rest') return state.rules.minRest ? 'פחות מ־' + state.rules.minRest + ' שעות מנוחה ממשמרת סמוכה' : 'חופף למשמרת אחרת';
+  if (z === 'overlap') return 'חופף למשמרת אחרת שלו/ה';
+  if (z === 'rest') return 'פחות מ־' + state.rules.minRest + ' שעות מנוחה ממשמרת סמוכה';
   return 'מעבר למקסימום (' + e.max + ' משמרות)';
 }
 
@@ -891,7 +897,7 @@ function autoSchedule(wk, fillOnly) {
     chain.add(id(p));
     for (const e of state.employees) {
       const is = issues(wk, p.d, p.sh, p.role, e, p);
-      if (!is.length || is.some(z => z !== 'max' && z !== 'rest')) continue;
+      if (!is.length || is.some(z => z !== 'max' && z !== 'rest' && z !== 'overlap')) continue;
       for (const q of empShifts(w, e.id)) {
         const qp = w.slots[q.k][q.i];
         if (qp.lock || chain.has(id(q))) continue;
@@ -1185,7 +1191,7 @@ function viewTeam() {
     (n ? '<section class="list">' + state.employees.map(e =>
       '<button type="button" class="item" id="emp-' + e.id + '" data-act="emp" data-id="' + e.id + '"><span class="item-main"><span class="item-n">' + esc(e.name) + '</span>' +
       '<span class="item-roles">' + (e.roles.map(roleChip).join('') || '<span class="tag tag-warn">בלי תפקיד, לא ישובץ/תשובץ אוטומטית</span>') + '</span></span>' +
-      '<span class="item-meta"><span>עד ' + e.max + ' משמרות' + (e.double ? ', אפשר שתיים ביום' : '') + '</span>' + (isSubmitted(wk, e.id) ? '<span class="tag tag-ok">הוגשה זמינות</span>' : '<span class="tag tag-warn">טרם הוגשה</span>') + '</span>' +
+      '<span class="item-meta"><span>עד ' + e.max + ' משמרות</span>' + (isSubmitted(wk, e.id) ? '<span class="tag tag-ok">הוגשה זמינות</span>' : '<span class="tag tag-warn">טרם הוגשה</span>') + '</span>' +
       icon('left') + '</button>').join('') + '</section>'
       : '<section class="card empty"><h2 class="h2">עוד אין עובדים</h2><p class="sub">מוסיפים עובד/ת עם שם ומספר אישי, או מייבאים את כל הרשימה מקובץ אקסל.</p></section>');
 }
@@ -1232,7 +1238,7 @@ function viewSetup() {
     '<div class="set-grid">' + shifts + '</div>' +
     '<div><button type="button" class="btn" id="btnAddShift" data-act="shiftAdd">' + icon('plus') + 'משמרת</button></div></section>' +
     '<section class="card stack"><h2 class="h2">כללי שיבוץ</h2>' +
-    '<div class="set-line"><div><strong>מנוחה מינימלית בין משמרות</strong><p class="sub">בשעות. החוק דורש 8 לפחות; ערך גבוה יותר מונע למשל בוקר מיד אחרי ערב. מי שמסומן/ת בלשונית הצוות כמי שאפשר לשבץ לשתי משמרות ביום, יכול/ה לקבל שתיים באותו יום בלי קשר לערך הזה.</p></div>' +
+    '<div class="set-line"><div><strong>מנוחה מינימלית בין משמרות</strong><p class="sub">בשעות, בין משמרת ביום אחד למשמרת ביום אחר. החוק דורש 8 לפחות; ערך גבוה יותר מונע למשל בוקר מיד אחרי ערב. שתי משמרות באותו יום הן דבר רגיל ואינן מוגבלות בכלל הזה; כדאי לוודא שסך שעות העבודה ביום עומד בדרישות החוק.</p></div>' +
     stepper('rest', state.rules.minRest, 'rest', '', 0, 16, 'שעות מנוחה בין משמרות') + '</div>' +
     '<p class="sub">השיבוץ האוטומטי משבץ רק מי שהגיש/ה זמינות, מוגדר/ת לתפקיד ולא עבר/ה את מקסימום המשמרות. הוא נותן עדיפות למשמרות מועדפות ומשתדל לחלק את העומס באופן שווה. שיבוץ שנעשה ידנית ננעל ולא משתנה. מי שסימן/ה שעות מסוימות בתוך משמרת יכול/ה להשתבץ בה, והשעות מופיעות ליד השם; מי שזמין/ה לכל המשמרת מקבל/ת עדיפות.</p></section>' +
     (REMOTE
@@ -1324,7 +1330,7 @@ function cleanState(src) {
   const roleIds = new Set(roles.map(r => r.id)), shiftIds = new Set(shifts.map(x => x.id));
   const employees = uniq(src.employees, e => ({
     id: e.id, name: str(e.name, 120).replace(/\s+/g, ' ').trim(), number: /^\d{3,12}$/.test(e.number) ? e.number : '',
-    roles: (Array.isArray(e.roles) ? e.roles : []).filter(id => roleIds.has(id)), max: int(e.max, 1, 99, 5), double: e.double === true,
+    roles: (Array.isArray(e.roles) ? e.roles : []).filter(id => roleIds.has(id)), max: int(e.max, 1, 99, 5),
   })).filter(e => e.name);
   const empIds = new Set(employees.map(e => e.id));
   const slotKey = k => k.length > 2 && k[1] === '|' && k[0] >= '0' && k[0] <= '6' && shiftIds.has(k.slice(2));
@@ -1707,8 +1713,6 @@ const SHEETS = {
         '<div class="field"><span class="label">תפקידים שהעובד/ת יכול/ה למלא</span><div class="pick">' +
         state.roles.map(r => '<button type="button" class="pickbtn" id="er-' + r.id + '" aria-pressed="' + d.roles.includes(r.id) + '" data-act="empRole" data-id="' + r.id + '">' + icon('check') + roleChip(r.id) + '</button>').join('') + '</div></div>' +
         '<div class="field field-row"><span class="label">מקסימום משמרות בשבוע</span>' + stepper('emax', d.max, 'empMax', '', 1, maxCap(), 'מקסימום משמרות בשבוע') + '</div>' +
-        '<div class="field"><label class="check" for="empDouble"><input type="checkbox" id="empDouble" data-bind="draft.double"' + (d.double ? ' checked' : '') + ' aria-describedby="empDoubleHelp"><span>אפשר לשבץ לשתי משמרות באותו יום</span></label>' +
-        '<p class="sub" id="empDoubleHelp">למי שרוצה לעבוד פעמיים ביום. בלי הסימון, המנוחה המינימלית בין משמרות מונעת זאת. כדאי לוודא שסך שעות העבודה ביום עומד בדרישות החוק.</p></div>' +
         legalNote('הפרטים נשמרים כדי לבנות את הסידור. לפני שמוסיפים עובד/ת יש ליידע אותו/ה על כך.', 'lnEmp') +
         (s.err ? '<p class="err" role="alert">' + s.err + '</p>' : ''),
       foot: '<button type="button" class="btn btn-primary" id="btnEmpSave" data-act="empSave"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? 'שומר…' : 'שמירה') + '</button>' +
@@ -2848,13 +2852,13 @@ const actions = {
       if (p.emp) {
         taken.add(p.emp.id);
         if (p.kind === 'same') continue;
-        const u = { id: p.emp.id, name: p.name, roles: p.roles ? ordered(p.roles) : p.emp.roles, max: p.max || p.emp.max, double: !!p.emp.double };
+        const u = { id: p.emp.id, name: p.name, roles: p.roles ? ordered(p.roles) : p.emp.roles, max: p.max || p.emp.max };
         if (p.number) u.number = p.number;
         ups.push(u);
         updated++;
       } else {
         const id = uid('e_');
-        ups.push({ id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : [], max: p.max || 5, double: false });
+        ups.push({ id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : [], max: p.max || 5 });
         taken.add(id);
         added++;
       }
@@ -3064,7 +3068,7 @@ const actions = {
 
   emp(ds, el) {
     const e = ds.id && empById(ds.id);
-    openSheet({ type: 'emp', draft: e ? Object.assign(clone(e), { number: '' }) : { id: null, name: '', number: suggestNumber(), roles: [], max: 5, double: false }, err: '' }, el.id);
+    openSheet({ type: 'emp', draft: e ? Object.assign(clone(e), { number: '' }) : { id: null, name: '', number: suggestNumber(), roles: [], max: 5 }, err: '' }, el.id);
     if (!e) { const inp = $('#empName'); if (inp) inp.focus(); }
   },
   empRole(ds) { const r = ui.sheet.draft.roles, i = r.indexOf(ds.id); if (i < 0) r.push(ds.id); else r.splice(i, 1); render(); },
@@ -3081,7 +3085,7 @@ const actions = {
     s.bad = !name || twin ? 'empName' : s.err && d.roles.length ? 'empNumber' : '';
     if (s.err) { render(); return; }
     const roles = state.roles.map(r => r.id).filter(id => d.roles.includes(id));
-    const rec = { id: d.id || uid('e_'), name, roles, max: d.max, double: !!d.double };
+    const rec = { id: d.id || uid('e_'), name, roles, max: d.max };
     if (REMOTE) {
       if (s.busy) return;
       s.busy = true;
@@ -3332,7 +3336,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('input', e => {
   const t = e.target, b = t.dataset && t.dataset.bind;
-  if (!b || b === 'imp.remove' || b === 'draft.double' || b.slice(0, 3) === 'cc.' || b.slice(0, 3) === 'ck.') return;
+  if (!b || b === 'imp.remove' || b.slice(0, 3) === 'cc.' || b.slice(0, 3) === 'ck.') return;
   const v = t.value, id = t.dataset.id;
   const paint = (attr, text) => document.querySelectorAll('[' + attr + '="' + id + '"]').forEach(n => { n.textContent = text; });
   if (b.slice(0, 3) === 'si.') { ui.signin[b.slice(3)] = v; return; }
@@ -3357,7 +3361,6 @@ document.addEventListener('change', e => {
   if (t.id === 'backupFile') { if (t.files && t.files[0]) restoreFile(t.files[0]); return; }
   const b = t.dataset && t.dataset.bind;
   if (b === 'imp.remove' && ui.sheet) { ui.sheet.remove = t.checked; render(); return; }
-  if (b === 'draft.double') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft.double = t.checked; return; }
   if (b && b.slice(0, 3) === 'cc.') {
     const q = b.split('.'), st = consentState(q[1]), c = legal.ready && legal.reg.consents.find(x => x.id === q[2]);
     if (!st) return;

@@ -26,8 +26,7 @@ const spy = () => {
     delete st.app;
     st.example = false;
     st.store.name = 'המכולת של סבתא';
-    st.employees.forEach(e => { delete e.double; });
-    st.employees.push({ id: 'e_mine', name: 'העובד שלי', number: '4321', roles: ['r_cash'], max: 7 });
+    st.employees.push({ id: 'e_mine', name: 'העובד שלי', number: '4321', roles: ['r_cash'], max: 7, double: true });   // "double": a setting an earlier version had
     st.avail[Object.keys(st.avail)[0]].e_noa.slots['0|s_am'] = { v: 2, t: [['08:00', null]] };
   });
   await page.evaluate(() => localStorage.removeItem('sadran.keep.update'));
@@ -38,22 +37,22 @@ const spy = () => {
   s.check('the sign-in and the agreement are kept: no second agreement screen', !(await page.$('#agreeForm')) && (await L.txt(page, '#storeName')) === 'המכולת של סבתא');
   const copy = await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update') || 'null'));
   s.check('a copy of the data as it was before the update is set aside', !!copy && copy.data === old && copy.at > 0, copy && copy.data.length);
-  s.check('the data is now marked with the new version', now.app === '1.1.0' && (await L.txt(page, '.foot-v')) === 'סדרן 1.1.0', [now.app, await L.txt(page, '.foot-v')]);
+  s.check('the data is now marked with the new version', now.app === '1.2.0' && (await L.txt(page, '.foot-v')) === 'סדרן 1.2.0', [now.app, await L.txt(page, '.foot-v')]);
   await reload();
   s.check('the copy is made once, not on every visit', (await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update')).data)) === old);
 
   // ---------- the weekly limit goes up to every shift in the week
   await tab('team');
   await page.click('#emp-e_mine'); await page.waitForSelector('#emax-p');
-  s.check('the option for two shifts a day is off unless chosen', !(await page.isChecked('#empDouble')));
+  s.check('there is no per-person switch for two shifts a day: it is simply allowed', !(await page.$('#empDouble')) && (await stored()).employees.every(e => !('double' in e)));
   let presses = 0;
   while (!(await page.isDisabled('#emax-p')) && presses++ < 40) await page.click('#emax-p');
   s.check('the weekly maximum goes past 7, up to all 14 shifts of the week', (await L.txt(page, '#emax-o')) === '14', await L.txt(page, '#emax-o'));
   await page.click('#btnEmpSave'); await page.waitForFunction(() => !document.querySelector('#sheetRoot .sheet'));
-  s.check('the team list shows the new maximum', /עד 14 משמרות/.test(await L.txt(page, '#emp-e_mine')) && !/שתיים ביום/.test(await L.txt(page, '#emp-e_mine')), await L.txt(page, '#emp-e_mine'));
+  s.check('the team list shows the new maximum', /עד 14 משמרות/.test(await L.txt(page, '#emp-e_mine')), await L.txt(page, '#emp-e_mine'));
   s.check('saved', (await stored()).employees.find(e => e.id === 'e_mine').max === 14);
 
-  // ---------- two shifts a day: one person, two shifts every day, 8 hours of rest required
+  // ---------- two shifts on the same day are normal: one person, two shifts every day, 8 hours of rest between days
   await patch(st => {
     const wk = Object.keys(st.avail)[0], slots = {};
     for (let d = 0; d < 7; d++) { slots[d + '|s_am'] = 1; slots[d + '|s_pm'] = 1; }
@@ -68,28 +67,52 @@ const spy = () => {
   await reload();
   await tab('schedule');
   await page.click('#btnAuto');
-  s.check('without the option, one shift a day: 7 of 14', (await L.txt(page, '.sum-num .num')) === '7/14', await L.txt(page, '.sum-num .num'));
-  await page.click('.pos.is-empty'); await page.waitForSelector('#sheetRoot .sheet');
-  s.check('a second shift that day is offered only as an exception, with the reason', /אפשר לשבץ בחריגה/.test(await L.txt(page, '#sheetRoot .sheet-b')) && /פחות מ־8 שעות מנוחה/.test(await L.txt(page, '#sheetRoot .sheet-b')), await L.txt(page, '#sheetRoot .sheet-b'));
+  s.check('one person can take both shifts every day: 14 of 14', (await L.txt(page, '.sum-num .num')) === '14/14', await L.txt(page, '.sum-num .num'));
+  s.check('and nothing is flagged', !(await page.$('.chip-warn')) && !(await page.$('.pos-w')), await L.txt(page, '.chips'));
+  s.check('the settings say that two shifts a day are normal', /שתי משמרות באותו יום הן דבר רגיל/.test(await (async () => { await tab('setup'); return page.textContent('#view'); })()));
+  // the rest rule still protects the night between two days: an evening, then the next morning
+  const place = list => patch('st => { const wk = Object.keys(st.avail)[0]; st.weeks[wk].published = null; for (const k in st.weeks[wk].slots) st.weeks[wk].slots[k][0].emp = ' + JSON.stringify(list) + '.includes(k) ? "e_one" : null; }');
+  await patch(st => { st.rules.minRest = 10; });
+  await place(['0|s_am', '0|s_pm', '1|s_am']);
+  await reload(); await tab('schedule');
+  const flagged = await page.$$eval('.pos', els => els.filter(e => e.querySelector('.pos-w')).map(e => e.id + ':' + e.querySelector('.pos-w').textContent.trim()));
+  s.check('with 10 hours of rest, Sunday evening then Monday morning is flagged; Sunday morning and evening are not', canon(flagged) === canon(['pos-0|s_pm-0:מנוחה קצרה', 'pos-1|s_am-0:מנוחה קצרה']), flagged);
+  await page.click('[id="pos-1|s_pm-0"]'); await page.waitForSelector('#sheetRoot .sheet');
+  s.check('a second shift on Monday is a normal fit, not an exception', /מתאימים למשמרת \(1\)/.test(await L.txt(page, '#sheetRoot .sheet-b')), await L.txt(page, '#sheetRoot .sheet-b'));
   await page.keyboard.press('Escape');
-  await tab('team');
-  await page.click('#emp-e_one'); await page.waitForSelector('#empDouble');
-  await page.check('#empDouble');
-  s.check('the option is explained', /פעמיים ביום/.test(await L.txt(page, '#empDoubleHelp')));
-  await page.click('#btnEmpSave'); await page.waitForFunction(() => !document.querySelector('#sheetRoot .sheet'));
-  s.check('the team list marks who can work twice a day', /עד 14 משמרות, אפשר שתיים ביום/.test(await L.txt(page, '#emp-e_one')), await L.txt(page, '#emp-e_one'));
-  await tab('schedule');
+  // two shifts that run at the same time are never fine
+  await patch(st => { st.shifts[1].start = '13:00'; st.shifts[1].end = '21:00'; st.rules.minRest = 0; });
+  await place(['0|s_am', '0|s_pm']);
+  await reload(); await tab('schedule');
+  s.check('overlapping shifts on the same day are flagged as overlapping', canon(await page.$$eval('.pos-w', e => e.map(x => x.textContent.trim()))) === canon(['חופף למשמרת אחרת', 'חופף למשמרת אחרת']), await page.$$eval('.pos-w', e => e.map(x => x.textContent.trim())));
+  // a third shift on one day is held to the rest rule again
+  await patch(st => {
+    st.shifts = [{ id: 's_am', name: 'בוקר', start: '07:00', end: '11:00' }, { id: 's_pm', name: 'צהריים', start: '11:00', end: '15:00' }, { id: 's_ev', name: 'ערב', start: '15:00', end: '19:00' }];
+    st.req = { s_am: { r_a: 1 }, s_pm: { r_a: 1 }, s_ev: { r_a: 1 } };
+    st.rules.minRest = 2;
+    st.employees[0].max = 21;   // so that only the rule, not the weekly maximum, holds the third shift back
+    const wk = Object.keys(st.avail)[0];
+    for (let d = 0; d < 7; d++) st.avail[wk].e_one.slots[d + '|s_ev'] = 1;
+    st.weeks = {};
+  });
+  await reload(); await tab('schedule');
   await page.click('#btnAuto');
-  s.check('with the option, both shifts every day: 14 of 14', (await L.txt(page, '.sum-num .num')) === '14/14', await L.txt(page, '.sum-num .num'));
-  s.check('and nothing is flagged as a short rest', !(await page.$('.chip-warn')) && !(await page.$('.pos-w')), await L.txt(page, '.chips'));
+  s.check('with three short shifts a day, two a day are given freely and the third is not: 14 of 21', (await L.txt(page, '.sum-num .num')) === '14/21' && !(await page.$('.pos-w')), await L.txt(page, '.sum-num .num'));
+  s.check('the weekly maximum follows the number of shifts: up to 21', await (async () => { await tab('team'); await page.click('#emp-e_one'); await page.waitForSelector('#emax-p'); let n = 0; while (!(await page.isDisabled('#emax-p')) && n++ < 40) await page.click('#emax-p'); const v = await L.txt(page, '#emax-o'); await page.keyboard.press('Escape'); return v === '21'; })());
+  // back to two shifts a day, all filled, for the export checks below
+  await patch(st => {
+    const wk = Object.keys(st.avail)[0], slots = {};
+    for (let d = 0; d < 7; d++) { slots[d + '|s_am'] = 1; slots[d + '|s_pm'] = 1; }
+    st.shifts = [{ id: 's_am', name: 'בוקר', start: '07:00', end: '15:00' }, { id: 's_pm', name: 'ערב', start: '15:00', end: '23:00' }];
+    st.req = { s_am: { r_a: 1 }, s_pm: { r_a: 1 } };
+    st.rules.minRest = 8;
+    st.employees[0].max = 14;
+    st.avail[wk].e_one.slots = slots;
+    st.weeks = {};
+  });
+  await reload(); await tab('schedule');
+  await page.click('#btnAuto');
   now = await stored();
-  s.check('the option is saved with the employee', now.employees[0].double === true && now.employees[0].max === 14);
-  // someone without the option is still protected by the rest rule
-  await patch(st => { st.employees[0].double = false; });
-  await reload();
-  s.check('switching the option off flags the doubles again', (await page.$$('.pos-w')).length === 14, (await page.$$('.pos-w')).length);
-  await patch(st => { st.employees[0].double = true; });
-  await reload();
 
   // ---------- the exported image and PDF show names only
   await page.evaluate(() => { window.__drawn = []; });
@@ -142,7 +165,7 @@ const spy = () => {
   const file = path.join(L.BUILD, 'backup.json');
   await dl.saveAs(file);
   const bk = JSON.parse(fs.readFileSync(file, 'utf8'));
-  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '1.1.0' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
+  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '1.2.0' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
   s.check('the backup does not carry a sign-in', bk.data.prefs.session === null);
   // reset by mistake, then bring the data back from the copy set aside
   await page.click('#cf-reset'); await page.click('#cf-reset');
@@ -195,7 +218,7 @@ const spy = () => {
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('sadran.v1')).employees.length === 2);
   const got = await stored();
   const ids = [].concat(got.roles.map(r => r.id), got.shifts.map(x => x.id), got.employees.map(e => e.id), Object.keys(got.avail), Object.keys(got.weeks), Object.keys(got.closed));
-  s.check('a hostile backup is cleaned: only plain ids, numbers and known values remain', ids.every(i => /^[A-Za-z0-9_|-]+$/.test(i)) && got.roles.every(r => Number.isInteger(r.color)) && got.theme.preset === 'blue' && got.exportStyle === 'color' && got.logo === null && /^\d+$/.test(got.managerCode) && got.rules.minRest === 10 && got.employees[1].max === 5 && got.employees[1].double === false && canon(got.employees[1].roles) === canon(['r_a']), [ids, got.theme, got.employees[1]]);
+  s.check('a hostile backup is cleaned: only plain ids, numbers and known values remain', ids.every(i => /^[A-Za-z0-9_|-]+$/.test(i)) && got.roles.every(r => Number.isInteger(r.color)) && got.theme.preset === 'blue' && got.exportStyle === 'color' && got.logo === null && /^\d+$/.test(got.managerCode) && got.rules.minRest === 10 && got.employees[1].max === 5 && !('double' in got.employees[1]) && canon(got.employees[1].roles) === canon(['r_a']), [ids, got.theme, got.employees[1]]);
   for (const v of ['schedule', 'availability', 'team', 'setup']) {
     await tab(v);
     const r = await page.evaluate(() => ({ x: window.__x, bad: document.querySelectorAll('img[src="x"], [onerror], [onmouseover], [onclick]').length }));

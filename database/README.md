@@ -36,7 +36,8 @@ Inside the Claude viewer, pages cannot reach outside services, so the site runs 
 - **Store**: name and logo. The logo is resized in the browser to at most 360 px and stored in the database; each device keeps a copy and downloads it again only when it changes.
 - **Colour theme** for everyone: seven presets or any colour. The site derives the rest from it and keeps text readable in light and dark. Each person can also switch their own device between light, dark and the device setting with the button at the top of the screen.
 - **Role colours**: 12 highlight colours.
-- **Per employee** (in צוות): the roles they can fill, the most shifts a week (from 1 up to every shift in the week, so 14 with two shifts a day), and whether they may be given **two shifts on the same day**. Without that option the minimum rest between shifts keeps everyone to one shift a day; with it, a second shift that day is allowed as long as the two do not overlap. The site does not check daily working hours against the law.
+- **Per employee** (in צוות): the roles they can fill and the most shifts a week, from 1 up to every shift in the week (14 with two shifts a day).
+- **Two shifts on the same day are normal.** Anyone who marked both shifts of a day as available can be given both, as long as the two do not overlap. The minimum rest between shifts applies between different days (an evening, then the next morning) and to a third shift on one day. The site does not check daily working hours against the law.
 - **Export style** for the roster as PDF or JPEG: colourful, light, dark, or print (black on white). Both the manager (any week, marked "טיוטה" if not published as shown) and employees (published weeks) can save the roster as a file. The exported roster shows names and hours only, without roles.
 - **Availability deadline**: a day and time in the week before. Employees see it on their availability screen.
 
