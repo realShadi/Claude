@@ -1,0 +1,82 @@
+{
+  "placeholders": {
+    "BUSINESS_NAME": "שם העסק שמפעיל את האתר",
+    "BUSINESS_ADDRESS": "כתובת העסק שמפעיל את האתר",
+    "CONTACT_EMAIL": "דוא״ל ליצירת קשר",
+    "PRIVACY_CONTACT": "מי מטפל/ת בפניות בנושא פרטיות (שם או תפקיד)",
+    "SITE_URL": "כתובת האתר",
+    "HOSTING_PROVIDER": "החברה שמאחסנת את קובצי האתר",
+    "DATA_LOCATION": "המדינה שבה נמצאים שרתי מסד הנתונים",
+    "RETENTION_PERIOD": "כמה זמן נשמרים זמינות וסידורים, למשל: למשך שנתיים",
+    "MINORS_POLICY": "מדיניות לגבי עובדים מתחת לגיל 18",
+    "COURT_DISTRICT": "מחוז השיפוט, למשל: מחוז תל אביב",
+    "ACCESSIBILITY_COORDINATOR": "שם רכז/ת הנגישות",
+    "ACCESSIBILITY_EMAIL": "דוא״ל רכז/ת הנגישות",
+    "ACCESSIBILITY_RESPONSE_TIME": "זמן המענה לפניות נגישות, למשל: 14 ימי עבודה",
+    "ACCESSIBILITY_AUDIT": "מי בדק את נגישות האתר ומתי",
+    "PHYSICAL_ACCESSIBILITY": "הסדרי הנגישות במקום העסק (חניה, כניסה, שירותים)"
+  },
+  "pages": [
+    { "id": "privacy", "title": "מדיניות פרטיות", "file": "privacy.md", "version": "1.3", "updated": "2026-11-20", "footer": true, "reviewed": false },
+    { "id": "terms", "title": "תנאי שימוש", "file": "terms.md", "version": "1.2", "updated": "2026-11-20", "footer": true, "reviewed": false },
+    { "id": "accessibility", "title": "הצהרת נגישות", "file": "accessibility.md", "version": "1.1", "updated": "2026-11-20", "footer": true, "reviewed": false },
+    { "id": "cookies", "title": "עוגיות", "file": "cookies.md", "version": "1.1", "updated": "2026-11-20", "footer": true, "reviewed": false }
+  ],
+  "consents": [
+    {
+      "id": "terms",
+      "enabled": true,
+      "required": true,
+      "version": "1.1",
+      "audience": ["manager", "employee"],
+      "title": "תנאי השימוש ומדיניות הפרטיות",
+      "label": "קראתי ואני מסכים/ה ל[תנאי השימוש](#terms) ול[מדיניות הפרטיות](#privacy)"
+    },
+    {
+      "id": "marketing",
+      "enabled": false,
+      "required": false,
+      "version": "1.0",
+      "audience": ["manager"],
+      "title": "עדכונים ומבצעים",
+      "label": "אני מסכים/ה לקבל מ{{BUSINESS_NAME}} עדכונים והצעות שיווקיות בדוא״ל. אפשר לבטל את ההסכמה בכל עת.",
+      "fields": [
+        { "id": "email", "type": "email", "label": "דוא״ל לקבלת העדכונים", "required": true }
+      ]
+    }
+  ],
+  "cookies": {
+    "version": "1.1",
+    "renewAfterDays": 365,
+    "categories": [
+      {
+        "id": "necessary",
+        "title": "הכרחי",
+        "required": true,
+        "description": "נחוץ כדי שהאתר יפעל: כניסה למערכת והעדפות תצוגה. אי אפשר לכבות.",
+        "items": [
+          { "name": "sadran.token", "what": "מזהה כניסה", "why": "זוכר שנכנסת, כדי שלא יהיה צורך להיכנס מחדש בכל ביקור", "kept": "עד יציאה מהאתר, או 30 יום בלי שימוש" },
+          { "name": "sadran.store", "what": "החנות שנכנסת אליה לאחרונה", "why": "פותח את מסך הכניסה של החנות שלך, בלי לבחור אותה שוב בכל ביקור", "kept": "עד שמחליפים חנות או מוחקים" },
+          { "name": "sadran.appearance", "what": "מראה בהיר או כהה", "why": "זוכר את המראה שבחרת במכשיר הזה", "kept": "עד שמשנים או מוחקים" },
+          { "name": "sadran.logo", "what": "עותק של לוגו החנות", "why": "מציג את הלוגו מהר, בלי להוריד אותו בכל ביקור", "kept": "עד שהלוגו מוחלף" },
+          { "name": "sadran.consent", "what": "הבחירה שלך בהודעת העוגיות", "why": "זוכר שראית את ההודעה ומה בחרת", "kept": "12 חודשים" },
+          { "name": "Service Worker, Push", "what": "מנוי להתראות", "why": "מאפשר לדפדפן לקבל ולהציג תזכורות. נשמר רק אם הפעלת התראות", "kept": "עד כיבוי ההתראות או יציאה מהאתר" }
+        ]
+      },
+      {
+        "id": "analytics",
+        "title": "ניתוח שימוש",
+        "description": "עוזר להבין איך משתמשים באתר כדי לשפר אותו.",
+        "items": [],
+        "scripts": []
+      },
+      {
+        "id": "marketing",
+        "title": "שיווק",
+        "description": "משמש להתאמת פרסום.",
+        "items": [],
+        "scripts": []
+      }
+    ]
+  }
+}

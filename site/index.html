@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Only this site's own files may run or load here, and data may go only to the store's database. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://xdjeijflnutqoxzzodqh.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>סדרן משמרות</title>
+<meta name="description" content="סידור עבודה שבועי לחנות: הגשת זמינות, שיבוץ ותזכורות.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#182029" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="סדרן">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<a class="skip" href="#view" data-act="skip">דילוג לתוכן הראשי</a>
+<div class="app" id="app" dir="rtl" lang="he">
+  <div id="cookieRoot"></div>
+  <header class="bar">
+    <div class="bar-in">
+      <a class="brand" id="brandLink" href="./" data-act="home">
+        <img class="brand-logo" id="brandLogo" alt="" hidden>
+        <span class="brand-mark" id="brandMark">סדרן</span>
+        <span class="brand-store" id="storeName"></span>
+      </a>
+      <nav class="tabs-top" id="tabsTop" aria-label="ניווט ראשי"></nav>
+      <div class="sess" id="sess"></div>
+      <button type="button" class="bar-btn" id="appearBtn" data-act="appearance" hidden></button>
+    </div>
+  </header>
+  <main class="main" id="view" tabindex="-1"></main>
+  <footer class="foot" id="foot"></footer>
+  <nav class="tabs-bottom" id="tabsBottom" aria-label="ניווט ראשי"></nav>
+  <div id="sheetRoot"></div>
+  <div class="toast-root" id="toastRoot" aria-live="polite"></div>
+  <div class="vh" id="routeStatus" aria-live="polite"></div>
+  <input type="file" id="xlsxFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="קובץ אקסל של עובדים" hidden>
+  <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" aria-label="קובץ הלוגו של החנות" hidden>
+  <input type="file" id="backupFile" accept=".json,application/json" aria-label="קובץ גיבוי של הנתונים" hidden>
+</div>
+<noscript><p style="padding:24px;font:16px Arial,sans-serif">האתר הזה צריך JavaScript כדי לפעול. אפשר להפעיל JavaScript בהגדרות הדפדפן ולטעון את הדף מחדש.</p></noscript>
+<script src="app.js" defer></script>
+</body>
+</html>

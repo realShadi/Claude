@@ -1,0 +1,17 @@
+{
+  "BUSINESS_NAME": "שאדי שמסנה",
+  "BUSINESS_ADDRESS": "ירושלים",
+  "CONTACT_EMAIL": "shadicraft5@gmail.com",
+  "PRIVACY_CONTACT": "מפעיל האתר",
+  "SITE_URL": "https://sadran.netlify.app",
+  "HOSTING_PROVIDER": "Netlify, Inc. (ארצות הברית)",
+  "DATA_LOCATION": "יפן (טוקיו)",
+  "RETENTION_PERIOD": "למשך שנה מתחילת השבוע שאליו הם שייכים, ואז נמחקים אוטומטית",
+  "MINORS_POLICY": "חנות רשאית לצרף עובדים מתחת לגיל 18, והיא האחראית לוודא שהעסקתם ושעות עבודתם עומדות בדין.",
+  "COURT_DISTRICT": "מחוז ירושלים",
+  "ACCESSIBILITY_COORDINATOR": "שאדי שמסנה",
+  "ACCESSIBILITY_EMAIL": "shadicraft5@gmail.com",
+  "ACCESSIBILITY_RESPONSE_TIME": "14 ימים",
+  "ACCESSIBILITY_AUDIT": "האתר נבדק בנובמבר 2026 בכלי בדיקה אוטומטיים (axe-core, לפי WCAG 2.2 ברמה AA) ובבדיקות ידניות: שימוש במקלדת בלבד, הגדלת טקסט, ריווח טקסט ורוחב מסך של 320 פיקסלים. האתר עוד לא נבדק בידי מורשה נגישות שירות או בידי משתמשים בטכנולוגיה מסייעת.",
+  "PHYSICAL_ACCESSIBILITY": "לעסק אין מקום קבלת קהל. השירות ניתן באינטרנט בלבד."
+}

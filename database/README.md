@@ -1,0 +1,149 @@
+# Sadran: data, reminders and hosting
+
+Sadran (`site/`) is a weekly shift scheduler for stores. One site serves many stores: each store has its own manager code, team, settings and rosters, and sees only its own data. This folder holds what the site needs around the page itself: the database definition, the reminder schedule and the Excel layout for the employee list.
+
+| File | What it is |
+|---|---|
+| `schema.sql` | The database: tables, sign-in checks and the functions the site calls. Safe to run again. |
+| `reminders.sql` | Runs the availability reminders every 10 minutes, and deletes availability and rosters older than a year every night (pg_cron). Run after `schema.sql`. |
+| `employees-template.xlsx` | The layout for the employee list (name and personal number), for import in the app. Built by `../tools/make-template.py`. |
+| `../supabase/functions/sadran-remind/` | The Edge Function that sends the reminders as browser notifications. |
+| `../site/content/legal/` | The legal texts, the business details that fill them, and the consent and cookie settings. See its `README.md`. |
+| `../LEGAL_TODO.md` | What still has to be filled in and reviewed by a lawyer before going live. |
+
+## How it fits together
+
+```
+phone / computer ──► site/ (static host) ──► Supabase project (xdjeijflnutqoxzzodqh)
+       ▲                                       private "sadran" schema + sadran_* functions
+       │                                              │
+       └──── browser push service ◄── sadran-remind ◄─┘ every 10 minutes (pg_cron + pg_net)
+```
+
+- The site has no build step: `index.html`, `app.css` and `app.js`, with the fonts (`fonts/`) and the Excel library (`vendor/`) served from the site itself, so a visit contacts no third party. `manifest.webmanifest` and the icons let it be added to a phone's home screen. `sw.js` shows notifications and is installed only on devices where notifications are switched on. The site talks to Supabase with the project's **publishable key**, which is written into `app.js`. That key is meant to be public: it can only call the `sadran_*` functions.
+- **Many stores, kept apart.** `sadran.stores` has one row per store, and every other table is keyed by the store. A sign-in belongs to one store, and each function works only inside the store of the sign-in it was given, so one store can never read or change another's data.
+- **The way in**: the product's front page, then **כניסה לחנות** (choose the store by name) or **פתיחת חנות חדשה**, then the store's sign-in screen. A store's own link (`https://<the site>/?store=<id>`, shown in its settings) skips the choice, and a device remembers the store it last used.
+- Every function checks a sign-in before it reads or writes anything:
+  - **Employees** sign in with their name and personal number, in their store. They see their own availability, their teammates' names and published rosters. They can change only their own availability.
+  - **The manager** signs in with the store's manager code. The manager sees and changes everything in that store.
+  - Without a sign-in, only this can be read: the list of store names, and one store's name, colours and logo for its sign-in screen.
+- The tables live in a private schema the Data API does not expose, with row-level security turned on and no policies, so nothing can read them directly.
+- The manager codes and the employees' personal numbers are stored only as bcrypt hashes, and sign-in sessions as SHA-256 hashes. Nobody can read a personal number back, the manager included: the manager can only set a new one, which signs that employee out everywhere. Ten wrong attempts on one name, or on one store's manager code, block further attempts on it for 15 minutes.
+- Every agreement to the terms, and any optional consent, is recorded in `sadran.consents` with the store, the person, the version of the text, the time and the screen it was given on.
+- Changes are saved automatically about a second after the last edit. Other devices pick them up within about 30 seconds, or right away when the page is opened or brought back to the front. If the connection drops, the header shows "לא נשמר" and the change is sent when it returns.
+
+Inside the Claude viewer, pages cannot reach outside services, so the site runs there as a one-device demo, saved in that browser only. It has the same front page and store choice: the stores are the ones kept in that browser, starting with an example store (or with whatever an earlier version of the demo had saved there, which becomes the first store unchanged), and a store opened there stays there. Because that data exists nowhere else, the demo sets a copy aside before a newer version of the page, a reset or a restore could replace it, and its settings screen can save everything to a backup file and load it back (**גיבוי הנתונים**). `python3 tools/build-demo.py out.html` folds the site into the single file the viewer needs. Notifications do not run there.
+
+## What the manager can set (הגדרות)
+
+- **Store**: name, link and logo. The name is what people pick in the store list, so no two stores share one; it is changed with **שמירת השם**. **קישור לכניסת העובדים** is the store's own link, to send to the team. The logo is resized in the browser to at most 360 px and stored in the database; each device keeps a copy and downloads it again only when it changes.
+- **Colour theme** for everyone: seven presets or any colour. The site derives the rest from it and keeps text readable in light and dark. Each person can also switch their own device between light, dark and the device setting with the button at the top of the screen.
+- **Role colours**: 12 highlight colours.
+- **Per employee** (in צוות): the roles they can fill and the most shifts a week, from 1 up to every shift in the week (14 with two shifts a day).
+- **Order of priority per role** (**סדר עדיפות** under each role): who is placed first in that role. Automatic scheduling gives a role's positions to the highest person in its order who is available, has the role and is under their weekly maximum, before anyone lower. Without an order, everyone in the role is equal and the work is spread by availability and load. The order is stored with the role in the store's settings; employees never receive it.
+- **Two shifts on the same day are normal.** Anyone who marked both shifts of a day as available can be given both, as long as the two do not overlap. The minimum rest between shifts applies between different days (an evening, then the next morning) and to a third shift on one day. The site does not check daily working hours against the law.
+- **Export style** for the roster as PDF or JPEG: colourful, light, dark, or print (black on white). Both the manager (any week, marked "טיוטה" if not published as shown) and employees (published weeks) can save the roster as a file. The exported roster shows names and hours only, without roles.
+- **Availability deadline**: a day and time in the week before. Employees see it on their availability screen.
+
+Employees can mark a shift as possible or preferred, and with the clock button, limit it to specific hours: up to two ranges inside the shift, for example 11:30–13:50, or 16:30 to the end of the shift. A range that ends at the shift's end follows the shift if its hours change.
+
+They can also give hours for a whole day (**שעות** under the day): 12:00–18:00 with a 07:00–15:00 morning and a 15:00–23:00 evening marks the morning from 12:00 and the evening until 18:00. Someone available for part of a shift is scheduled like anyone else, automatically or by hand, and the roster, the employee's own shifts and the exported file show their hours under their name.
+
+## Reminders
+
+When the deadline for next week has passed, everyone who has not submitted availability and has turned notifications on gets a browser notification, once per week. The manager's devices with notifications on get a list of who has not submitted. In **זמינות**, **שליחת התראה** sends a reminder right away, and says who could not be reached.
+
+- **Publishing a roster** tells every employee with notifications on that it is out, with how many shifts they have that week. The manager is told how many people it reached.
+- **בדיקת התראות** in the settings sends a test notification to one employee's devices, or to the manager's own, and says whether it arrived or that the person has not switched notifications on.
+- Both go through the same function (`{"kind": "published" | "test"}`), built by `sadran.notify()`, which checks the manager's sign-in and works only inside that store.
+- Employees turn notifications on at the bottom of their availability screen; the manager at the deadline card in the settings. Signing out turns them off on that device.
+- **iPhone and iPad**: notifications work only when the site was added to the home screen (Safari: Share, Add to Home Screen) and is opened from there. The site explains this on those devices.
+- Android, and desktop Chrome, Edge and Firefox, work in the browser.
+
+How it is wired:
+
+1. `sadran.reminders_due()` goes over every store, works out next week's deadline in the store's time zone (saved with the deadline setting), and returns one message per device, recording each reminder so it goes out once. A notification opens the site at its store.
+2. `supabase/functions/sadran-remind` signs each message with the app's VAPID key, encrypts it for the device (RFC 8291) and posts it to the device's push service. Devices that report they are gone are removed.
+3. `reminders.sql` schedules the function every 10 minutes.
+
+The function connects with `SUPABASE_DB_URL` (provided by Supabase) and needs two secrets: `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_JWK`. The public key is also in `site/app.js` (`VAPID_PUBLIC`). The private key exists only as a Supabase secret; it must never be committed. Only the push services' own addresses (Google, Mozilla, Apple, Microsoft) are accepted as devices.
+
+To replace the key pair: generate a new P-256 key pair, set both secrets, put the new public key in `site/app.js`, and redeploy. Everyone then turns notifications on again.
+
+Deploy the function with the Supabase CLI:
+
+```
+supabase functions deploy sadran-remind --no-verify-jwt
+```
+
+## Starting the service, and opening stores
+
+Before the site is shared: fill in the business details in `site/content/legal/business.json` and go through `LEGAL_TODO.md`, so the legal pages are complete before anyone is asked to agree to them. The details are those of whoever operates the site for all the stores.
+
+Each store is then opened from the site itself:
+
+1. On the front page, **פתיחת חנות חדשה**: the store's name, a manager code (6 to 12 digits), and a tick to agree to the terms of use and the privacy policy. The store opens on its manager screen.
+2. In **צוות**, import the employee list from Excel (**ייבוא מאקסל**) or add people one by one. Tell each person their personal number then: the site does not show it again.
+3. In **הגדרות**, add the logo, choose the colours and the export style, check the roles, shifts and staffing, and set the availability deadline.
+4. Send the team the store's link from **הגדרות → קישור לכניסת העובדים**. Each person signs in with their name and personal number, is asked once to agree to the terms and the privacy policy, and can turn on notifications.
+
+To give another store access, send its manager the site's address: they open their own store the same way. Or open it for them and hand over the manager code, which they should then replace in the settings.
+
+**Anyone who reaches the site can open a store.** That is what lets a new store start without waiting for anyone, and it is limited: three stores a quarter of an hour from one network address, and 60 a day for the whole service. The names of the stores are visible to anyone, in the store list. Nothing else of a store is.
+
+To see the stores, in the Supabase SQL Editor:
+
+```sql
+select id, name, created_at,
+       (select count(*) from sadran.employees e where e.store_id = s.id) as employees
+  from sadran.stores s order by created_at;
+```
+
+To close a store and delete everything in it (team, availability, rosters, consent records, sign-ins). This cannot be undone:
+
+```sql
+select sadran.close_store('<store id>');
+```
+
+## The employee list (`employees-template.xlsx`)
+
+| Column | Required | Meaning |
+|---|---|---|
+| שם (name) | yes | What the employee types when signing in. |
+| מספר אישי (personal number) | for a new employee | 4 to 12 digits, different from the manager code. Stored as text, so a leading zero is kept. Leave it empty for someone already in the system to keep their number. |
+| תפקידים (roles) | no | Role names exactly as they appear in the app's settings, separated by commas. |
+| מקסימום משמרות בשבוע (max shifts per week) | no | A whole number, 1 or more, up to the number of shifts in a week. Defaults to 5. |
+
+Row 2 of the template is an example. Any row whose name contains "דוגמה" is skipped on import. People are matched by name, so every name must be different: a name already in the system is updated, a new name is added. A number in the file replaces that person's number and signs them out. **ייצוא לאקסל** writes the current list back out in the same layout, with the number column empty, because the numbers cannot be read back.
+
+## Hosting
+
+Any static host with HTTPS works. Publish the `site/` folder; there is nothing to build. The page sends plain-HTTP visitors to HTTPS, and notifications need it.
+
+- **Netlify**: create a site from this repository. `netlify.toml` already tells it to publish `site/` and sets the security headers; every push to `main` updates the site.
+- **GitHub Pages**: needs a public repository, or a paid GitHub plan for a private one. It cannot send custom headers, so the protections in `netlify.toml` (below) are missing there.
+
+### Security headers
+
+The page carries its own Content-Security-Policy (in `index.html`): scripts, styles, fonts and images only from the site itself, and connections only to the site and the Supabase project. Nothing can be loaded from another address unless it is added there.
+
+`netlify.toml` adds the headers a page cannot set for itself: HTTPS only for a year (`Strict-Transport-Security`), no embedding in other sites (`frame-ancestors 'none'`, `X-Frame-Options`), no type guessing, a short referrer, and no camera, microphone, location or payment access. On another host, set the same headers there.
+
+## Legal pages, consents and cookies
+
+The privacy policy, terms of use, accessibility statement and cookies page, the "I agree" boxes and the cookie notice are all driven by the files in `site/content/legal/`. Its `README.md` explains how to edit a text, add a page, add a consent type, or add an analytics tool that loads only after consent. `LEGAL_TODO.md` at the top of the repository lists what must be filled in and reviewed first.
+
+## Changing the database
+
+Edit `schema.sql` and run it again, in the Supabase SQL Editor or through the Management API (`POST /v1/projects/{ref}/database/query`). It only creates what is missing and replaces the functions, so existing data stays. A database from the first versions, which held a single store, is converted on that run: its store becomes the first store, with its team, rosters and sign-ins.
+
+To check the security setup, use **Advisors → Security** in the Supabase dashboard. It lists every `sadran_*` function as callable by the public key; that is intended, since each one checks the sign-in first.
+
+## Privacy
+
+- The site keeps the minimum: a name, a hashed sign-in number, roles, availability and rosters. It asks for no email address, phone number, ID number or payment details.
+- A filled-in employee list is personal data. Prefer random codes as personal numbers rather than phone or ID numbers, keep filled-in copies of the Excel file out of repositories, and delete them after the import.
+- Deleting an employee deletes their availability, notes, consent records, notification subscriptions and sessions. Closing a store deletes all of that for everyone in it, with its settings and rosters. Availability and rosters are deleted a year after the start of their week (`sadran.purge_old()`, scheduled nightly by `reminders.sql`), as the privacy policy says. Failed sign-in attempts are deleted after a day and reminder records after 90 days.
+- When a store is opened, a one-way hash of the network address it was opened from is kept for a day, to enforce the limit on opening stores. The address itself is not stored.
+- Store names are public. A store that should not be found by name can be given a name only its team recognises; the team still signs in through the store's link.
+- The database is in the Supabase region chosen when the project was created (this project: Tokyo). That is outside Israel; see `LEGAL_TODO.md`.
