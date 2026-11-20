@@ -37,7 +37,7 @@ const spy = () => {
   s.check('the sign-in and the agreement are kept: no second agreement screen', !(await page.$('#agreeForm')) && (await L.txt(page, '#storeName')) === 'המכולת של סבתא');
   const copy = await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update') || 'null'));
   s.check('a copy of the data as it was before the update is set aside', !!copy && copy.data === old && copy.at > 0, copy && copy.data.length);
-  s.check('the data is now marked with the new version', now.app === '1.2.0' && (await L.txt(page, '.foot-v')) === 'סדרן 1.2.0', [now.app, await L.txt(page, '.foot-v')]);
+  s.check('the data is now marked with the new version', now.app === '2.0.0' && (await L.txt(page, '.foot-v')) === 'סדרן 2.0.0', [now.app, await L.txt(page, '.foot-v')]);
   await reload();
   s.check('the copy is made once, not on every visit', (await page.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.update')).data)) === old);
 
@@ -165,30 +165,31 @@ const spy = () => {
   const file = path.join(L.BUILD, 'backup.json');
   await dl.saveAs(file);
   const bk = JSON.parse(fs.readFileSync(file, 'utf8'));
-  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '1.2.0' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
+  s.check('the backup is a dated file with everything in it', /^sadran-backup-\d{4}-\d\d-\d\d\.json$/.test(dl.suggestedFilename()) && bk.app === 'sadran' && bk.version === '2.0.0' && dataOf(bk.data) === dataOf(mine), dl.suggestedFilename());
   s.check('the backup does not carry a sign-in', bk.data.prefs.session === null);
-  // reset by mistake, then bring the data back from the copy set aside
-  await page.click('#cf-reset'); await page.click('#cf-reset');
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('sadran.v1')).employees.length === 11);
-  s.check('a reset says the data was set aside', /נשמרו בצד/.test(await L.txt(page, '.toast')), await L.txt(page, '.toast'));
-  await page.waitForSelector('#btnKeptBack');
-  s.check('the settings offer the data from before the reset', /לפני האיפוס/.test(await L.txt(page, '#view')));
-  await page.click('#btnKeptBack');
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('sadran.v1')).employees.length === 1);
-  s.check('the data from before the reset is back, all of it', dataOf(await stored()) === dataOf(mine));
-  s.check('still signed in as the manager, with no new agreement screen', !!(await page.$('#btnOut')) && !(await page.$('#agreeForm')));
-  // reset again, and this time restore from the file
-  await tab('setup');
-  await page.click('#cf-reset'); await page.click('#cf-reset');
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('sadran.v1')).employees.length === 11);
+  // this is someone's own store: there is no "reset to the example" here to press by mistake
+  s.check("a store with someone's own data offers no reset", !(await page.$('#cf-reset')));
+  // the data changes after the backup was saved; the file brings it back as it was
+  const closed3 = on => page.waitForFunction(v => (JSON.parse(localStorage.getItem('sadran.v1')).closed['3|s_am'] === true) === v, on);
+  await page.click('#dt-s_am-3'); await closed3(true);
+  const changed = await stored();
+  s.check('the data now differs from the backup', dataOf(changed) !== dataOf(mine));
   await page.setInputFiles('#backupFile', file);
   await page.waitForSelector('#btnRestoreGo');
   const sum = await L.txt(page, '#sheetRoot .sheet-b');
   s.check('the restore dialog says what the file holds and that it replaces the data', /המכולת של סבתא/.test(sum) && /עובד\/ת אחד\/ת/.test(sum) && /2 משמרות/.test(sum) && /יחליף את כל הנתונים/.test(sum), sum);
-  await page.click('#btnRestoreGo');
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('sadran.v1')).employees.length === 1);
+  await page.click('#btnRestoreGo'); await closed3(false);
   s.check('restoring the file brings back exactly what was saved', dataOf(await stored()) === dataOf(mine));
   s.check('the roster and the theme are shown again', (await L.txt(page, '#storeName')) === 'המכולת של סבתא' && (await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().length)) === 7);
+  // what was here before the restore was set aside too, and can be brought back
+  await tab('setup');
+  await page.waitForSelector('#btnKeptBack');
+  s.check('the settings offer the data from before the restore', /לפני השחזור/.test(await L.txt(page, '#view')));
+  await page.click('#btnKeptBack'); await closed3(true);
+  s.check('the data from before the restore is back, all of it', dataOf(await stored()) === dataOf(changed));
+  s.check('still signed in as the manager, with no new agreement screen', !!(await page.$('#btnOut')) && !(await page.$('#agreeForm')));
+  await tab('setup');
+  await page.setInputFiles('#backupFile', file); await page.waitForSelector('#btnRestoreGo'); await page.click('#btnRestoreGo'); await closed3(false);   // the same file, chosen a second time
   // files that are not backups, and a hostile one
   const bad = path.join(L.BUILD, 'not-a-backup.json');
   fs.writeFileSync(bad, 'שלום, אני לא גיבוי');
@@ -226,12 +227,44 @@ const spy = () => {
   }
   await page.context().close();
 
+  // ---------- the example store can be reset; what was there is set aside and can be brought back
+  const ex = await L.demoPage(browser, s);
+  const exData = async () => JSON.parse(await ex.evaluate(() => localStorage.getItem('sadran.v1')));
+  const exTab = v => ex.click('#tabsBottom .tab[data-view="' + v + '"]');
+  const exClosed = on => ex.waitForFunction(v => (JSON.parse(localStorage.getItem('sadran.v1')).closed['3|s_am'] === true) === v, on);
+  await ex.click('#ckNone');
+  await L.demoSignIn(ex, 'manager');
+  await exTab('setup');
+  await ex.click('#dt-s_am-3'); await exClosed(true);
+  await ex.click('#rest-p');
+  await ex.waitForFunction(() => JSON.parse(localStorage.getItem('sadran.v1')).rules.minRest === 11);
+  const played = await exData();
+  s.check('changing settings leaves the example store an example', played.example === true && !!(await ex.$('#cf-reset')));
+  await ex.click('#cf-reset'); await ex.click('#cf-reset'); await exClosed(false);
+  s.check('a reset says the data was set aside', /נשמרו בצד/.test(await L.txt(ex, '.toast')), await L.txt(ex, '.toast'));
+  s.check('the example is back as it began', (await exData()).rules.minRest === 10 && (await exData()).employees.length === 11);
+  await ex.waitForSelector('#btnKeptBack');
+  s.check('the settings offer the data from before the reset', /לפני האיפוס/.test(await L.txt(ex, '#view')));
+  await ex.click('#btnKeptBack'); await exClosed(true);
+  s.check('the data from before the reset is back, all of it', dataOf(await exData()) === dataOf(played));
+  s.check('the manager who reset stays signed in, with no new agreement screen', !!(await ex.$('#btnOut')) && !(await ex.$('#agreeForm')));
+  // an example whose team changed is someone's store from then on
+  await exTab('team');
+  await ex.click('#emp-e_noa'); await ex.waitForSelector('#cf-emp-e_noa');
+  await ex.click('#cf-emp-e_noa'); await ex.click('#cf-emp-e_noa');
+  await ex.waitForFunction(() => JSON.parse(localStorage.getItem('sadran.v1')).employees.length === 10);
+  await exTab('setup');
+  s.check('once a person is removed from the example team, the reset is no longer offered', !(await ex.$('#cf-reset')) && (await exData()).example === false);
+  await ex.context().close();
+
   // ---------- stored data this version cannot read is set aside, not overwritten
   const odd = await L.demoPage(browser, s);
   await odd.evaluate(() => localStorage.setItem('sadran.v1', '{"v":41,"employees":"from the future"}'));
-  await odd.reload(); await odd.waitForSelector('#signForm');
+  await odd.reload(); await odd.waitForSelector('#lpEnter');   // the store could not be opened, so the front page is shown
   const un = await odd.evaluate(() => JSON.parse(localStorage.getItem('sadran.keep.unreadable') || 'null'));
   s.check('unreadable stored data is kept aside before the example data replaces it', !!un && un.data === '{"v":41,"employees":"from the future"}', un);
+  await L.enterStore(odd);
+  s.check('and the example store takes its place when it is chosen again', (await odd.evaluate(() => JSON.parse(localStorage.getItem('sadran.v1')).employees.length)) === 11 && !!(await odd.$('#demoMgr')));
   await odd.context().close();
 
   // ---------- someone available for part of a shift can be placed in it

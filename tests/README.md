@@ -1,6 +1,6 @@
 # Tests
 
-Browser tests for what must keep working as the site changes: the legal pages, the consent boxes and cookie choices, accessibility, and safety against injected markup. They run against the single-file demo (example data, one device), so they need no database and change nothing.
+Browser tests for what must keep working as the site changes: the front page and the way into a store, the legal pages, the consent boxes and cookie choices, accessibility, and safety against injected markup. They run against the single-file demo (stores kept in the browser, one device), so they need no database and change nothing.
 
 ```bash
 cd tests
@@ -17,7 +17,8 @@ npm test
 | `keyboard.test.js` | Keyboard-only use, visible focus, dialogs, form errors tied to fields, layout at 320 px and with wide text spacing, control sizes. |
 | `injection.test.js` | Markup and script typed into names, notes and settings, or placed in the legal files, is shown as text and never runs. |
 | `embed.test.js` | The demo inside a sandboxed frame with no storage and form submission forbidden, the strictest way a viewer might embed it: links, dialogs, the agreement and sign-in still work. |
-| `schedule.test.js` | Scheduling rules and data safety: the weekly maximum up to every shift in the week, two shifts on the same day as normal (with the rest rule between days, overlaps and a third shift still flagged), part-shift availability, exports without roles, data from an earlier version kept through an update, and backup and restore, including a hostile backup file. |
+| `schedule.test.js` | Scheduling rules and data safety: the weekly maximum up to every shift in the week, two shifts on the same day as normal (with the rest rule between days, overlaps and a third shift still flagged), part-shift availability, exports without roles, data from an earlier version kept through an update, backup and restore (including a hostile backup file), and the reset that only the untouched example store offers. |
+| `stores.test.js` | Several stores: the product's front page, choosing a store and searching the list, opening a store (name, manager code, agreement), stores kept apart (team, codes, sign-ins), renaming with unique names, and data saved before there were several stores becoming the first store, untouched. |
 | `axe.test.js` | axe-core on every screen and dialog, light and dark, phone and desktop. Pass a theme as a third argument to audit another colour theme: `node axe.test.js both mobile '{"preset":"forest"}'`. |
 
 `axe.test.js` also prints items the tool could not judge by itself ("review"): text on the role highlight colours (covered by `contrast.test.js`) and the `+`/`−` buttons (named with `aria-label`).

@@ -1221,7 +1221,7 @@ div.xprev { display: grid; place-items: center; color: var(--ink-3); }
 /* Windows high-contrast and similar modes replace the colours: states that are shown by a fill
    get an outline or a system colour instead, so they do not disappear. */
 @media (forced-colors: active) {
-  .btn, .seg-b, .daybtn, .pickbtn, .xopt, .tab, .dchip, .pos, .chip, .role, .banner, .card, .sheet, .ck, .toast, .c, .cn, .swatch, .pal, .stepper { border: 1px solid CanvasText; }
+  .btn, .seg-b, .daybtn, .pickbtn, .xopt, .tab, .dchip, .pos, .chip, .role, .banner, .card, .sheet, .ck, .toast, .c, .cn, .swatch, .pal, .stepper, .shops, .lp-demo, .lp-num, .lp-ic { border: 1px solid CanvasText; }
   .seg-b[aria-pressed="true"], .daybtn[aria-pressed="true"], .pickbtn[aria-pressed="true"], .xopt[aria-pressed="true"], .pal[aria-pressed="true"],
   .tab[aria-current="page"], .foot a[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -3px; }
   .c2, .meter > i, .load-bar > i { background: Highlight; forced-color-adjust: none; }
@@ -1230,9 +1230,71 @@ div.xprev { display: grid; place-items: center; color: var(--ink-3); }
   :focus-visible { outline: 2px solid Highlight; }
 }
 
+/* ---------- front screens: the product's page, choosing a store, opening one ---------- */
+a.btn { color: var(--ink); text-decoration: none; }
+a.btn-primary { color: var(--accent-ink); }
+.btn-lg { min-height: 50px; padding: 0 20px; border-radius: 13px; font-size: 1rem; }
+.lp-hero { display: grid; gap: 22px; align-items: center; padding-block: 10px 8px; }
+@media (min-width: 900px) { .lp-hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 40px; padding-block: 28px 20px; } }
+.lp-copy { display: grid; gap: 14px; justify-items: start; min-width: 0; }
+.lp-kicker { margin: 0; font-size: .875rem; font-weight: 700; color: var(--accent); }
+.lp-h1 { margin: 0; font: 400 clamp(2rem, 6.2vw, 3.25rem)/1.14 var(--font-display); text-wrap: balance; }
+.lp-mark {
+  padding: 0 4px;
+  border-radius: 2px;
+  background: linear-gradient(transparent 58%, var(--hl-1) 58%, var(--hl-1) 92%, transparent 92%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.lp-lead { margin: 0; max-width: 52ch; font-size: 1.0625rem; line-height: 1.6; color: var(--ink-2); }
+.lp-cta { display: flex; flex-wrap: wrap; gap: 10px; }
+.lp-demo {
+  width: 100%;
+  max-width: 440px;
+  justify-self: center;
+  padding: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+.lp-demo .day { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-row: auto; }   /* a day on its own, outside the week grid */
+.lp-sec { display: grid; gap: 12px; padding-top: 14px; }
+.lp-h2 { margin: 0; font: 400 1.5rem/1.2 var(--font-display); text-wrap: balance; }
+.lp-h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+.lp-steps, .lp-feats { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.lp-steps > li, .lp-feats > li { display: grid; gap: 6px; align-content: start; }
+@media (min-width: 700px) {
+  .lp-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lp-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1050px) { .lp-feats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.lp-num { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--surface); font-weight: 700; }
+.lp-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+.lp-ic .ic { width: 20px; height: 20px; }
+.lp-end { display: grid; gap: 10px; justify-items: start; margin-top: 14px; padding: 20px 18px; }
+.shops { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.shop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  text-align: start;
+  font-weight: 600;
+}
+.shops li:first-child .shop { border-top: 0; }
+.shop:hover { background: var(--surface-2); }
+.shop-n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.shop > .ic { width: 16px; height: 16px; color: var(--ink-3); }
+
 /* On paper: the content only, black on white. Unfilled details stay marked without their colour. */
 @media print {
-  .skip, .bar, .tabs-bottom, .foot, #cookieRoot, .toast-root, #sheetRoot, .legal-back, .wk-actions, .daystrip, .banner-x, #ckOpen { display: none !important; }
+  .skip, .bar, .tabs-bottom, .foot, #cookieRoot, .toast-root, #sheetRoot, .legal-back, .wk-actions, .daystrip, .banner-x, #ckOpen, .lp-cta { display: none !important; }
   body { background: #fff; color: #000; }
   .main { max-width: none; padding: 0; }
   .card, .legal { border: 0; box-shadow: none; padding: 0; background: none; }

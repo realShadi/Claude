@@ -14,7 +14,7 @@ const L = require('./lib');
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('sadran.consent')));
   const an = () => page.evaluate(() => window.__an || 0);
   const tags = () => page.$$eval('script[src*="analytics.example"]', x => x.length);
-  await page.goto(url); await page.waitForSelector('#signForm');
+  await page.goto(url); await L.enterStore(page);
   // --- real prompt
   s.check('prompt offers accept, reject and customise', await has('#ckAll') && await has('#ckNone') && await has('#ckMore'));
   s.check('prompt names the optional category', /ניתוח שימוש/.test(await L.txt(page, '.ck-t')) && !/שיווק/.test(await L.txt(page, '.ck-t')), await L.txt(page, '.ck-t'));

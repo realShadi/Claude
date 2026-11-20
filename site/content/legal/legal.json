@@ -1,8 +1,8 @@
 {
   "placeholders": {
-    "BUSINESS_NAME": "שם העסק המלא",
+    "BUSINESS_NAME": "שם העסק שמפעיל את האתר",
     "BUSINESS_ID": "מספר עוסק או ח.פ.",
-    "BUSINESS_ADDRESS": "כתובת העסק",
+    "BUSINESS_ADDRESS": "כתובת העסק שמפעיל את האתר",
     "CONTACT_EMAIL": "דוא״ל ליצירת קשר",
     "CONTACT_PHONE": "טלפון ליצירת קשר",
     "PRIVACY_CONTACT": "מי מטפל/ת בפניות בנושא פרטיות (שם או תפקיד)",
@@ -20,17 +20,17 @@
     "PHYSICAL_ACCESSIBILITY": "הסדרי הנגישות במקום העסק (חניה, כניסה, שירותים)"
   },
   "pages": [
-    { "id": "privacy", "title": "מדיניות פרטיות", "file": "privacy.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false },
-    { "id": "terms", "title": "תנאי שימוש", "file": "terms.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false },
+    { "id": "privacy", "title": "מדיניות פרטיות", "file": "privacy.md", "version": "1.1", "updated": "2026-11-20", "footer": true, "reviewed": false },
+    { "id": "terms", "title": "תנאי שימוש", "file": "terms.md", "version": "1.1", "updated": "2026-11-20", "footer": true, "reviewed": false },
     { "id": "accessibility", "title": "הצהרת נגישות", "file": "accessibility.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false },
-    { "id": "cookies", "title": "עוגיות", "file": "cookies.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false }
+    { "id": "cookies", "title": "עוגיות", "file": "cookies.md", "version": "1.1", "updated": "2026-11-20", "footer": true, "reviewed": false }
   ],
   "consents": [
     {
       "id": "terms",
       "enabled": true,
       "required": true,
-      "version": "1.0",
+      "version": "1.1",
       "audience": ["manager", "employee"],
       "title": "תנאי השימוש ומדיניות הפרטיות",
       "label": "קראתי ואני מסכים/ה ל[תנאי השימוש](#terms) ול[מדיניות הפרטיות](#privacy)"
@@ -49,7 +49,7 @@
     }
   ],
   "cookies": {
-    "version": "1.0",
+    "version": "1.1",
     "renewAfterDays": 365,
     "categories": [
       {
@@ -59,6 +59,7 @@
         "description": "נחוץ כדי שהאתר יפעל: כניסה למערכת והעדפות תצוגה. אי אפשר לכבות.",
         "items": [
           { "name": "sadran.token", "what": "מזהה כניסה", "why": "זוכר שנכנסת, כדי שלא יהיה צורך להיכנס מחדש בכל ביקור", "kept": "עד יציאה מהאתר, או 30 יום בלי שימוש" },
+          { "name": "sadran.store", "what": "החנות שנכנסת אליה לאחרונה", "why": "פותח את מסך הכניסה של החנות שלך, בלי לבחור אותה שוב בכל ביקור", "kept": "עד שמחליפים חנות או מוחקים" },
           { "name": "sadran.appearance", "what": "מראה בהיר או כהה", "why": "זוכר את המראה שבחרת במכשיר הזה", "kept": "עד שמשנים או מוחקים" },
           { "name": "sadran.logo", "what": "עותק של לוגו החנות", "why": "מציג את הלוגו מהר, בלי להוריד אותו בכל ביקור", "kept": "עד שהלוגו מוחלף" },
           { "name": "sadran.consent", "what": "הבחירה שלך בהודעת העוגיות", "why": "זוכר שראית את ההודעה ומה בחרת", "kept": "12 חודשים" },

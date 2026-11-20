@@ -8,22 +8,22 @@ Everything below is edited in `site/content/legal/` (see the `README.md` there).
 
 ## 1. Fill in the business details
 
-File: `site/content/legal/business.json`. An empty value shows on the site as a yellow note such as **[להשלים: שם העסק המלא]**, and the manager sees the list of missing details under **הגדרות → מסמכים משפטיים**.
+File: `site/content/legal/business.json`. The details are those of **the business that operates the site** for all the stores, not of any one store. An empty value shows on the site as a yellow note such as **[להשלים: שם העסק המלא]**, and the manager sees the list of missing details under **הגדרות → מסמכים משפטיים**.
 
 | Key | Appears in | What to write |
 |---|---|---|
 | `BUSINESS_NAME` | privacy, terms, accessibility | The full legal name of the business. |
 | `BUSINESS_ID` | privacy §1 | Company or dealer number, with its label, e.g. `ח.פ. 51-1234567`. |
-| `BUSINESS_ADDRESS` | privacy §1, §15; terms §14 | Street address. |
-| `CONTACT_EMAIL` | privacy §1, §15; terms §14 | An address someone reads. Becomes a link once filled. |
-| `CONTACT_PHONE` | privacy §1, §15; terms §14 | Phone number. |
+| `BUSINESS_ADDRESS` | privacy §1, §15; terms §15 | Street address. |
+| `CONTACT_EMAIL` | privacy §1, §15; terms §15 | An address someone reads. Becomes a link once filled. |
+| `CONTACT_PHONE` | privacy §1, §15; terms §15 | Phone number. |
 | `PRIVACY_CONTACT` | privacy §1 | The person or role who answers privacy requests, e.g. `מנהל/ת החנות`. |
 | `SITE_URL` | privacy §2 | The public address of the site, once it is hosted. |
 | `HOSTING_PROVIDER` | privacy §7 | The company that hosts the site's files, e.g. `Netlify`. |
 | `DATA_LOCATION` | privacy §7, §8 | **Already filled: `יפן (טוקיו)`**, where the database is today. Change it if the database moves (section 3 below). |
 | `RETENTION_PERIOD` | privacy §10 | How long availability and rosters are kept, as a phrase that completes "נשמרים …", e.g. `למשך שנתיים`. See item 2.4: the site does not delete old weeks by itself. |
 | `MINORS_POLICY` | privacy §13 | One or two sentences about employees under 18. Leave for the lawyer (item 2.5). |
-| `COURT_DISTRICT` | terms §13 | The court district, e.g. `מחוז תל אביב`. |
+| `COURT_DISTRICT` | terms §14 | The court district, e.g. `מחוז תל אביב`. |
 | `ACCESSIBILITY_COORDINATOR` | accessibility | Name of the accessibility contact person. |
 | `ACCESSIBILITY_PHONE` | accessibility | Their phone number. |
 | `ACCESSIBILITY_EMAIL` | accessibility | Their email. Becomes a link once filled. |
@@ -45,7 +45,7 @@ Section and regulation numbers are given as pointers. They were checked in Novem
 
 As understood, the amended section 11 requires the notice to say: whether giving the data is a legal duty or voluntary, and what happens on refusal (policy §4); the purpose (§5); the name and contact details of whoever controls the database (§1); who receives the data and why (§6, §7); and the rights of access and correction under sections 13 and 14 (§11).
 
-**2.2 The basis for processing employees' data.** Employees are asked to tick "קראתי ואני מסכים/ה" on their first sign-in, and the answer is recorded. Consent given by an employee to an employer may carry little weight, because the employee is not free to refuse. Please advise whether the store should rely on consent, on notice and legitimate management needs, or on both, and whether the wording of the box and of privacy §4 ("האם חובה למסור את המידע") should change. Terms §5 puts on the manager the duty to tell employees before adding them; confirm that is enough.
+**2.2 The basis for processing employees' data.** Employees are asked to tick "קראתי ואני מסכים/ה" on their first sign-in, and the answer is recorded. Consent given by an employee to an employer may carry little weight, because the employee is not free to refuse. Please advise whether the store should rely on consent, on notice and legitimate management needs, or on both, and whether the wording of the box and of privacy §4 ("האם חובה למסור את המידע") should change. Terms §6 puts on the manager the duty to tell employees before adding them; confirm that is enough.
 
 **2.3 Data stored outside Israel.** The database is hosted by Supabase in **Tokyo, Japan**. Supabase has no region in Israel, so the data is abroad whatever region is chosen. Privacy §7 and §8 say so. Please confirm that the transfer meets the Privacy Protection (Transfer of Data to Databases Abroad) Regulations, 5761-2001, which destination is preferable, and whether a written undertaking from the provider (its data processing agreement) must be signed and kept. See also section 3.
 
@@ -57,17 +57,17 @@ Pointers: regulation 2(8) allows a transfer to a country that is party to Conven
 
 **2.6 Registration, officer and security duties.** Please confirm that a store of this size does not have to register the database or appoint a privacy protection officer, and say which security level of the Privacy Protection (Data Security) Regulations, 5777-2017 applies and which documents it requires (for example a database definition document and a security procedure). The technical measures in place are listed in section 5.
 
-Pointers: after Amendment 13, registration (section 8א) and a privacy protection officer (section 17ב1) appear to apply to public bodies, data brokers and large-scale processing of especially sensitive data, none of which describes this store. Under the security regulations the likely level is basic (or "managed by an individual" if at most the owner and two others have access). Basic-level duties include a database definition document, a security procedure, access permissions, an incident log, and a written agreement with outside processors such as the cloud provider (regulation 15).
+Pointers: after Amendment 13, registration (section 8א) and a privacy protection officer (section 17ב1) appear to apply to public bodies, data brokers and large-scale processing of especially sensitive data. That did not describe a single store; please check it again for an operator that holds the data of many stores. Under the security regulations the likely level is basic (or "managed by an individual" if at most the owner and two others have access). Basic-level duties include a database definition document, a security procedure, access permissions, an incident log, and a written agreement with outside processors such as the cloud provider (regulation 15).
 
 **2.7 Free-text notes.** Employees can write a note to the manager with their availability. The site asks them, next to the field and in both documents, not to write sensitive information such as medical details. Confirm that is sufficient.
 
 ### Terms of use (`terms.md`)
 
-**2.8 The terms as a whole**, and in particular: §6 (the automatic roster is only a suggestion, and the site does not check labour-law limits), §10 (limitation of liability), §12 (how changes take effect) and §13 (governing law and court). These are standard-form terms, so clauses that limit liability or fix a court may be open to challenge under the Standard Contracts Law, 5743-1982.
+**2.8 The terms as a whole**, and in particular: §3 (opening a store), §7 (the automatic roster is only a suggestion, and the site does not check labour-law limits), §11 (limitation of liability), §13 (how changes take effect) and §14 (governing law and court). These are standard-form terms, so clauses that limit liability or fix a court may be open to challenge under the Standard Contracts Law, 5743-1982.
 
-The scheduler treats two shifts on the same day as normal for everyone, and the weekly maximum can go up to every shift in the week. The minimum rest set by the manager applies between different days only. The site does not check daily or weekly working hours or rest periods against the Hours of Work and Rest Law; §6 says the employer stays responsible for that. Please confirm the wording is enough for a store that schedules double shifts.
+The scheduler treats two shifts on the same day as normal for everyone, and the weekly maximum can go up to every shift in the week. The minimum rest set by the manager applies between different days only. The site does not check daily or weekly working hours or rest periods against the Hours of Work and Rest Law; §7 says the employer stays responsible for that. Please confirm the wording is enough for a store that schedules double shifts.
 
-Who the "site operator" is should also be confirmed: the draft assumes the store runs the site for its own staff.
+Who the "site operator" is should also be confirmed: the draft now assumes one operator runs the site for many stores (items 2.12 to 2.15).
 
 ### Accessibility (`accessibility.md`)
 
@@ -87,6 +87,18 @@ What was checked, and what was not, so `ACCESSIBILITY_AUDIT` can be written trut
 ### Cookies (`cookies.md`)
 
 **2.11** The site sets no cookies and loads nothing from third parties. It stores a few items in the browser that it needs in order to work, listed on the cookies page from `legal.json`. The notice at the bottom of the screen therefore only informs. Please confirm that an informational notice is appropriate for strictly necessary storage. As understood, no Israeli statute requires a cookie banner; the general notice and consent rules of the Privacy Law apply, and the Privacy Protection Authority has recommended a separate opt-in for cookies that are not essential, which is what the site does. If an analytics or advertising tool is ever added, the notice becomes a real choice and the tool loads only after consent (see the folder's `README.md`).
+
+### One site, many stores
+
+The site used to serve a single store. It is now a service: anyone can open a store on it, each store's data is separate, and the operator holds all of it. The drafts were updated for that, and this is the part that most needs a lawyer.
+
+**2.12 Who is responsible for what.** The drafts say that each store decides what data about its employees is entered and is responsible for it, and that the operator holds the data for the stores and uses it only to run the site (privacy §1, terms §6). Please confirm this split under the Protection of Privacy Law (the owner of the database and the party holding it for them), and whether the operator needs a written data-processing agreement with each store (Data Security Regulations, regulation 15), or whether the terms can serve as that agreement and what they must then say.
+
+**2.13 Opening a store is open to everyone.** A name and a manager code are all it takes: no approval, no payment and no check of who is opening it. Terms §2 and §3 have the person declare they may act for the store, and forbid misleading names and opening stores in bulk; the database also limits how many stores one source can open in a short time. Please confirm the wording, and say whether the operator should check who opens a store. If the service is ever sold, terms for paying customers will be needed.
+
+**2.14 Store names are public.** The list of stores is shown to anyone who opens the site, so employees can find theirs, and a store's logo is shown on its sign-in screen. Privacy §3 and §6 say so. Please confirm that is acceptable, or whether stores should be reachable only through their own link.
+
+**2.15 Closing a store.** A manager cannot close a store from the site. They ask the operator, who removes the store in the database (`select sadran.close_store('<store id>');`), which deletes everything of that store. Terms §12 and privacy §10 describe this. Please confirm the wording and what response time to promise. A "close my store" button can be added on request.
 
 ## 3. A decision for the owner: where the database is
 

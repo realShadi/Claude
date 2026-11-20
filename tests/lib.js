@@ -30,6 +30,7 @@ function viewerStub() {
 async function demoPage(browser, s, opts, init) {
   const o = Object.assign({ viewport: { width: 390, height: 844 }, acceptDownloads: true }, opts || {});
   delete o.file;
+  delete o.front;
   const ctx = await browser.newContext(o);
   await ctx.addInitScript(viewerStub);
   if (init) await ctx.addInitScript(init);
@@ -38,8 +39,17 @@ async function demoPage(browser, s, opts, init) {
   const page = await ctx.newPage();
   s.watch(page, 'demo');
   await page.goto('file://' + path.join(BUILD, (opts && opts.file) || 'page.html'));
-  await page.waitForSelector('#signForm, #btnOut', { timeout: 15000 });
+  if (opts && opts.front) { await page.waitForSelector('#lpEnter', { timeout: 15000 }); return page; }   // stay on the front page
+  await enterStore(page);
   return page;
+}
+// From the product's front page into a store: its sign-in screen, or the app when already signed in.
+async function enterStore(page, id) {
+  await page.waitForSelector('#lpEnter, #signForm, #btnOut', { timeout: 15000 });
+  if (!(await page.$('#lpEnter'))) return;
+  await page.click('#lpEnter');
+  await page.click('.shop[data-id="' + (id || 'main') + '"]');
+  await page.waitForSelector('#signForm, #btnOut', { timeout: 15000 });
 }
 const txt = async (page, sel) => ((await page.textContent(sel).catch(() => '')) || '').trim().replace(/\s+/g, ' ');
 const idle = page => page.waitForFunction(() => { const el = document.getElementById('syncState'); return el && !/is-busy|is-bad/.test(el.className); }, null, { timeout: 20000 }).catch(() => {});
@@ -58,4 +68,4 @@ async function demoSignIn(page, role) {
   await passGate(page);
 }
 const launch = () => chromium.launch({ channel: 'chromium' });
-module.exports = { launch, suite, demoPage, txt, idle, overflow, passGate, demoSignIn, path, BUILD, SITE };
+module.exports = { launch, suite, demoPage, enterStore, txt, idle, overflow, passGate, demoSignIn, path, BUILD, SITE };

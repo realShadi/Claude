@@ -11,9 +11,13 @@ rootEl.dir = 'rtl';
 
 const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 const DAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
-const STORE_KEY = 'sadran.v1';
+const STORE_KEY = 'sadran.v1';        // demo: the first store's data (the only key the single-store versions used)
+const STORES_KEY = 'sadran.stores';   // demo: which stores are kept in this browser
+const STORE_ID_KEY = 'sadran.store';  // hosted site: the store this device last used
+const SEED_NAME = 'מרכול השכונה';
+const SEED_IDS = ['e_noa', 'e_yosi', 'e_michal', 'e_shadi', 'e_dana', 'e_tamar', 'e_linoy', 'e_omer', 'e_ron', 'e_ahmad', 'e_ella'];
 const DEMO_CODE = '2468';
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '2.0.0';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 // The shared database. The key is the project's publishable key, which is meant to sit in a web page:
 // it only lets the page call the sadran_* functions, and each of those checks who is signed in.
@@ -171,8 +175,8 @@ function themeTokens(t) {
   return { light, dark };
 }
 let themeCss = '';
-function applyTheme() {
-  const tk = themeTokens(state.theme), v = o => Object.keys(o).map(k => '--' + k + ':' + o[k]).join(';');
+function applyTheme(neutral) {
+  const tk = themeTokens(neutral ? null : state.theme), v = o => Object.keys(o).map(k => '--' + k + ':' + o[k]).join(';');
   const css = ':root{' + v(tk.light) + '}@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){' + v(tk.dark) + ';color-scheme:dark}}' +
     ':root[data-theme="dark"]{' + v(tk.dark) + ';color-scheme:dark}';
   if (css === themeCss) return;
@@ -206,7 +210,7 @@ function seed() {
     app: APP_VERSION,
     example: true,
     managerCode: DEMO_CODE,
-    store: { name: 'מרכול השכונה' },
+    store: { name: SEED_NAME },
     roles: [
       { id: 'r_lead', name: 'אחראי/ת משמרת', color: 1 },
       { id: 'r_cash', name: 'קופאי/ת', color: 4 },
@@ -270,33 +274,51 @@ function seed() {
    a copy is set aside before anything could replace it: a newer version of the page, a reset to the
    example data, or loading a backup. Data this version cannot read is never overwritten unseen. */
 const KEEP_KEY = 'sadran.keep.';
-function keep(why, raw) {
-  try { if (raw) localStorage.setItem(KEEP_KEY + why, JSON.stringify({ at: Date.now(), app: APP_VERSION, data: raw })); }
+// A copy set aside belongs to a store. The first store keeps the names used before there were several.
+const keepName = (why, id) => KEEP_KEY + why + (id && id !== 'main' ? '.' + id : '');
+function keep(why, raw, id) {
+  try { if (raw) localStorage.setItem(keepName(why, id === undefined ? shop.id : id), JSON.stringify({ at: Date.now(), app: APP_VERSION, data: raw })); }
   catch (e) { /* no room for a copy; the data itself is untouched */ }
 }
-function kept(why) {
-  try { const c = JSON.parse(localStorage.getItem(KEEP_KEY + why) || 'null'); return c && typeof c.data === 'string' && c.at ? c : null; }
+function kept(why, id) {
+  try { const c = JSON.parse(localStorage.getItem(keepName(why, id === undefined ? shop.id : id)) || 'null'); return c && typeof c.data === 'string' && c.at ? c : null; }
   catch (e) { return null; }
 }
-function load() {
+
+/* ---------- stores ----------
+   The service holds many stores. On the hosted site they live in the database, and this device only
+   remembers which one it last used. In the demo they are all kept in this browser: a list, and each
+   store's data under its own key. The first store keeps the key the single-store versions used, so
+   whatever was entered then simply is the first store. */
+const shop = { id: null, list: [] };   // the store in use; demo: every store here, as { id, key, name }
+const shopRec = id => shop.list.find(x => x.id === id) || null;
+function shopsWrite() {
+  try { localStorage.setItem(STORES_KEY, JSON.stringify({ active: shop.id, list: shop.list })); } catch (e) { /* the list lasts for this visit */ }
+}
+// One store's saved data. Null when there is none, or when this version cannot read it (a copy is then set aside).
+function load(rec) {
   let raw = null;
-  try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return null; }   // no storage here: the example data
+  try { raw = localStorage.getItem(rec.key); } catch (e) { return null; }   // no storage here
   if (!raw) return null;
   try {
     const s = JSON.parse(raw);
     if (s && (s.v === 1 || s.v === 2) && Array.isArray(s.employees)) {
-      if (s.app !== APP_VERSION) keep('update', raw);
+      if (s.app !== APP_VERSION) keep('update', raw, rec.id);
       return migrate(s);
     }
   } catch (e) { /* not readable */ }
-  keep('unreadable', raw);
+  keep('unreadable', raw, rec.id);
   return null;
 }
+// The example store is an example only while it has the example's name and people. Renamed, or with a
+// team of its own, it is someone's store: it is no longer offered a reset to the example data.
+const stillExample = s => !!s.store && s.store.name === SEED_NAME && s.employees.length === SEED_IDS.length && s.employees.every(e => SEED_IDS.indexOf(e.id) >= 0);
 // Bring data saved by the first version up to date: sign-in numbers, a manager code, a session.
 function migrate(s) {
   if (s.v === 1) { s.example = true; s.v = 2; }
   s.app = APP_VERSION;
   s.employees.forEach(e => { delete e.double; });   // a per-person option that no longer exists: two shifts a day are normal
+  if (s.example && !stillExample(s)) s.example = false;
   s.prefs = s.prefs || { demoNote: true };
   delete s.prefs.mode;
   delete s.prefs.me;
@@ -318,7 +340,10 @@ function migrate(s) {
 }
 function save() {
   if (REMOTE) { queueChanges(); return; }
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  const rec = shopRec(shop.id);
+  if (!rec) return;   // no store is open: there is nothing to keep
+  try { localStorage.setItem(rec.key, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  if (rec.name !== state.store.name) { rec.name = state.store.name; shopsWrite(); }
 }
 // Settings and lists before anything arrives from the shared database.
 function blankState() {
@@ -337,14 +362,44 @@ function blankState() {
   return s;
 }
 
-let state, firstRun = false;
-if (REMOTE) state = blankState();
-else { state = load(); firstRun = !state; if (!state) state = seed(); }
+// Until a store is opened or chosen, an empty one stands in.
+let state = blankState();
+// Demo: find the stores kept in this browser. True when the front page should be shown once.
+function demoStart() {
+  let idx = null;
+  try { idx = JSON.parse(localStorage.getItem(STORES_KEY) || 'null'); } catch (e) { idx = null; }
+  if (idx && Array.isArray(idx.list) && idx.list.length) {
+    shop.list = idx.list.filter(x => x && /^[A-Za-z0-9_-]{1,48}$/.test(x.id) && typeof x.key === 'string' && x.key.indexOf('sadran.') === 0)
+      .map(x => ({ id: x.id, key: x.key, name: typeof x.name === 'string' ? x.name : '' }));
+    const rec = shopRec(idx.active), st = rec && load(rec);
+    if (st) { shop.id = rec.id; state = st; }
+    return false;
+  }
+  // The first visit since stores came in. Data an earlier version saved becomes the first store, with
+  // its sign-in kept. With nothing saved, the example store is created and waits to be chosen.
+  const first = { id: 'main', key: STORE_KEY, name: '' };
+  shop.list = [first];
+  const mine = load(first);
+  shop.id = 'main';
+  if (mine) state = mine;
+  else {
+    state = seed();
+    autoSchedule(ui.week, false);   // the example opens on a proposed roster rather than an empty sheet
+  }
+  first.name = state.store.name;
+  save();
+  if (!mine) { shop.id = null; state = blankState(); }
+  shopsWrite();
+  return !!mine;
+}
 
 const ui = {
   view: 'schedule', week: defaultWeek(), sheet: null, confirm: null, undo: null, fresh: false, open: {},
   signin: { tab: 'employee', name: '', number: '', code: '', err: '' },
-  setup: { code: '', code2: '', err: '' },
+  entry: null,   // a front screen asked for by name: 'landing', 'stores' or 'open'
+  stores: { q: '', list: null, more: false, err: '', seq: 0 },
+  newStore: { name: '', code: '', code2: '', err: '', bad: '' },
+  storeDraft: null, storeErr: '',
   agree: { checked: {}, fields: {}, err: '', busy: false }, agreeFor: '',
   legal: null, lastHash: '', unsub: null,
   codeDraft: null, codeErr: '',
@@ -385,10 +440,17 @@ function suggestNumber() {
    last edit, and the page reloads from the server every 30 seconds while nothing is being saved. */
 const net = { phase: REMOTE ? 'loading' : 'ready', token: null, busy: false, base: null, timers: {}, sending: {}, failures: 0, refreshing: false };
 const NET_ERR = 'אין חיבור לשרת. כדאי לבדוק את האינטרנט ולנסות שוב.';
-function tokenGet() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
-function tokenSet(t) {
+// A device holds one sign-in. It is kept with the store it belongs to, as "<store>:<token>", so a visit
+// knows where it leads without asking. (A sign-in saved before there were several stores has no store part.)
+function tokenRead() {
+  let v = null;
+  try { v = localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+  const m = /^(?:([a-z0-9]{6,16}):)?([^:]+)$/.exec(v || '');
+  return m ? { store: m[1] || null, token: m[2] } : null;
+}
+function tokenSet(t, store) {
   net.token = t || null;
-  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* then the sign-in lasts for this tab only */ }
+  try { if (t) localStorage.setItem(TOKEN_KEY, (store ? store + ':' : '') + t); else localStorage.removeItem(TOKEN_KEY); } catch (e) { /* then the sign-in lasts for this tab only */ }
 }
 // JSON with object keys in a fixed order, so two copies of the same data compare equal.
 function canon(v) {
@@ -447,6 +509,7 @@ function applyServer(d) {
   const ws = d.weeks || {};
   for (const wk in ws) state.weeks[wk] = { slots: ws[wk].slots || {}, over: ws[wk].over || {}, published: ws[wk].published || null };
   state.prefs.session = d.role === 'manager' ? { role: 'manager' } : { role: 'employee', id: d.me };
+  if (d.store) shop.id = d.store;
   state.consents = d.consents || {};
   takeBase();
 }
@@ -563,32 +626,84 @@ function paintSync() {
   el.title = bad ? 'אין חיבור לשרת. השינויים יישמרו כשהחיבור יחזור.' : busy ? 'שומר את השינויים' : 'כל השינויים נשמרו';
   el.innerHTML = '<span class="sync-t">' + (bad ? 'לא נשמר' : busy ? 'שומר…' : 'נשמר') + '</span>';
 }
-function endSession(reason) {
+// Close the open store on this screen, and forget the sign-in unless it is kept for the way back.
+// The store's name and look stay, for its sign-in screen.
+function dropSession(keep) {
   Object.keys(net.timers).forEach(k => clearTimeout(net.timers[k]));
   net.timers = {};
   net.sending = {};
   net.failures = 0;
   net.base = null;
-  tokenSet(null);
-  const keep = { store: state.store, theme: state.theme, logo: state.logo, logoVer: state.logoVer };
+  if (keep) net.token = null; else tokenSet(null);
+  const keepIt = { store: state.store, theme: state.theme, logo: state.logo, logoVer: state.logoVer };
   state = blankState();
-  Object.assign(state, keep);
+  Object.assign(state, keepIt);
   ui.sheet = null;
   ui.undo = null;
   net.phase = 'signin';
+}
+// Tell the server the sign-in is over, after sending what is still waiting to be saved.
+async function closeSession() {
+  const t = net.token;
+  if (pending()) { flushAll(false); await waitIdle(4000); }
+  await dropPushSub(t);
+  push.state = 'unknown';
+  rpc('sadran_logout', { p_token: t }).catch(() => { /* the session expires on its own */ });
+}
+// Step out of the open store to look at another one. Nothing is signed out: what is waiting to be
+// saved is sent, and the sign-in stays on the device for the way back.
+async function stepOut() {
+  if (pending()) { flushAll(false); await waitIdle(4000); }
+  push.state = 'unknown';
+  dropSession(true);
+}
+// One sign-in per device: before a new one starts, the one this device holds is ended properly.
+async function endOther() {
+  if (net.token) { await closeSession(); dropSession(); return; }
+  const kept = tokenRead();
+  if (!kept) return;
+  await dropPushSub(kept.token);
+  rpc('sadran_logout', { p_token: kept.token }).catch(() => { /* the session expires on its own */ });
+  tokenSet(null);
+}
+function endSession(reason) {
+  dropSession();
   clearRoute();
   render();
   window.scrollTo(0, 0);
   if (reason === 'expired') toast('הכניסה הסתיימה. צריך להיכנס שוב.');
   if (reason === 'removed') toast('העובד/ת הזה/זו כבר לא ברשימת הצוות.');
 }
-// Load everything for the signed-in person and open their first screen. False: the sign-in is no longer valid.
-async function enter() {
+function storeRecall() { try { const v = localStorage.getItem(STORE_ID_KEY); return /^[a-z0-9]{6,16}$/.test(v || '') ? v : null; } catch (e) { return null; } }
+function storeRemember(id) { try { if (id) localStorage.setItem(STORE_ID_KEY, id); else localStorage.removeItem(STORE_ID_KEY); } catch (e) { /* asked again next visit */ } }
+// A link to a store's sign-in screen carries ?store=<id>. It is used once and then taken out of the address.
+function storeFromLink() {
+  let id = null;
+  try { id = new URLSearchParams(location.search).get('store'); } catch (e) { return null; }
+  if (!/^[a-z0-9]{6,16}$/.test(id || '')) return null;
+  try { const u = new URL(location.href); u.searchParams.delete('store'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (e) { /* the link stays in the address */ }
+  return id;
+}
+// Show a store's sign-in screen: its name, colours and logo.
+async function useStore(st) {
+  shop.id = st.id;
+  storeRemember(st.id);
+  state.store = { name: st.store || '' };
+  state.theme = st.theme || { preset: 'blue' };
+  state.logo = null; state.logoVer = null;
+  await syncLogo(st.logoVer);
+  ui.signin = { tab: ui.signin.tab, name: '', number: '', code: '', err: '' };
+}
+// Load everything for the signed-in person and open their first screen. False: the sign-in was not
+// used, because it is no longer valid, or because it belongs to another store than the one asked for
+// (`only`). In that case it stays on the device.
+async function enter(only) {
   net.phase = 'loading';
   render();
   let loaded;
   try {
     loaded = await rpc('sadran_load', { p_token: net.token });
+    if (only && loaded.store && loaded.store !== only) { tokenSet(net.token, loaded.store); net.token = null; net.phase = 'signin'; return false; }
     applyServer(loaded);
   } catch (err) {
     if (err.code === 'auth') { tokenSet(null); return false; }
@@ -596,6 +711,7 @@ async function enter() {
     render();
     return true;
   }
+  tokenSet(net.token, shop.id);
   await syncLogo(loaded.logoVer);
   net.phase = 'ready';
   net.failures = 0;
@@ -603,12 +719,16 @@ async function enter() {
   ui.view = VIEWS[h] && VIEWS[h].mode === s.role ? h : (s.role === 'manager' ? 'schedule' : 'my-availability');
   ui.week = defaultWeek();
   ui.signin = { tab: ui.signin.tab, name: '', number: '', code: '', err: '' };
-  ui.setup = { code: '', code2: '', err: '' };
+  ui.newStore = { name: '', code: '', code2: '', err: '', bad: '' };
+  storeRemember(shop.id);
+  ui.entry = null;
+  if (FRONT[h]) { try { location.hash = ui.view; } catch (e) { /* hash routing is optional */ } }
   render();
   window.scrollTo(0, 0);
   refreshPush(true);
   return true;
 }
+let linked;   // the store a link asked for, until this visit has shown it (kept through a "try again")
 async function remoteStart() {
   net.phase = 'loading';
   render();
@@ -621,24 +741,30 @@ async function remoteStart() {
     render();
     return;
   }
-  const t = tokenGet();
-  if (t) { net.token = t; if (await enter()) return; }
-  try {
-    const st = await rpc('sadran_status');
-    state.store = { name: (st && st.store) || '' };
-    state.theme = (st && st.theme) || { preset: 'blue' };
-    await syncLogo(st && st.logoVer);
-    net.phase = st && st.configured ? 'signin' : 'setup';
-  } catch (err) {
-    net.phase = 'down';
+  if (linked === undefined) linked = storeFromLink();
+  const want = linked, last = storeRecall(), kept = tokenRead();
+  // A sign-in kept on this device opens its store, unless a link asks for another one.
+  if (kept && !(want && kept.store && want !== kept.store)) {
+    net.token = kept.token;
+    if (await enter(want)) { if (net.phase !== 'down') linked = null; return; }
+  }
+  const id = want || last;
+  net.phase = 'signin';
+  if (id) {
+    try {
+      const st = await rpc('sadran_status', { p_store: id });
+      if (st && st.found) await useStore(st);
+      else { shop.id = null; if (id === last) storeRemember(null); if (want) toast('החנות שבקישור לא נמצאה.'); }
+      linked = null;
+    } catch (err) { net.phase = 'down'; }
   }
   render();
 }
 
 /* ---------- store logo ----------
    Resized in the page, kept in the database as a data URL and cached on each device by version. */
-function logoCacheGet(ver) { try { const c = JSON.parse(localStorage.getItem(LOGO_KEY) || 'null'); return c && c.ver === ver ? c.data : null; } catch (e) { return null; } }
-function logoCacheSet(ver, data) { try { if (data) localStorage.setItem(LOGO_KEY, JSON.stringify({ ver, data })); else localStorage.removeItem(LOGO_KEY); } catch (e) { /* the logo is then fetched each visit */ } }
+function logoCacheGet(ver) { try { const c = JSON.parse(localStorage.getItem(LOGO_KEY) || 'null'); return c && c.ver === ver && c.store === shop.id ? c.data : null; } catch (e) { return null; } }
+function logoCacheSet(ver, data) { try { if (data) localStorage.setItem(LOGO_KEY, JSON.stringify({ store: shop.id, ver, data })); else localStorage.removeItem(LOGO_KEY); } catch (e) { /* the logo is then fetched each visit */ } }
 // Bring the logo up to date with the version the server reports. True when it changed.
 async function syncLogo(ver) {
   if (!REMOTE) return false;
@@ -651,7 +777,7 @@ async function syncLogo(ver) {
   const cached = logoCacheGet(ver);
   if (cached) { state.logo = cached; state.logoVer = ver; return true; }
   try {
-    const d = await rpc('sadran_logo');
+    const d = await rpc('sadran_logo', { p_store: shop.id });
     if (d && d.logo) { state.logo = d.logo; state.logoVer = d.logoVer; logoCacheSet(d.logoVer, d.logo); return true; }
   } catch (e) { /* keep what is shown */ }
   return false;
@@ -1215,8 +1341,15 @@ function viewSetup() {
       '</div>';
   }).join('');
   return '<section class="pagehead"><div><h1 class="h1">הגדרות</h1><p class="sub">התפקידים, המשמרות והכללים שלפיהם נבנה הסידור.</p></div></section>' +
-    '<section class="card stack"><h2 class="h2">החנות</h2><div class="field"><label class="label" for="storeInput">שם החנות או הסניף</label>' +
-    '<input class="input" id="storeInput" data-bind="store.name" value="' + esc(state.store.name) + '" autocomplete="off"></div>' +
+    '<section class="card stack"><h2 class="h2">החנות</h2>' +
+    '<form class="code-row" id="storeForm" data-form="storeRename" novalidate><div class="field"><label class="label" for="storeInput">שם החנות או הסניף</label>' +
+    '<input class="input" id="storeInput" data-bind="store.draft" value="' + esc(ui.storeDraft != null ? ui.storeDraft : state.store.name) + '" autocomplete="off" maxlength="60"' + fieldErr(ui.storeErr, 'storeErr', 'storeHelp') + '></div>' +
+    '<button type="submit" class="btn" id="btnStoreName"' + (net.busy ? ' disabled' : '') + '>שמירת השם</button></form>' +
+    (ui.storeErr ? '<p class="err" role="alert" id="storeErr">' + ui.storeErr + '</p>' : '<p class="sub" id="storeHelp">בשם הזה בוחרים את החנות במסך הכניסה, ולכן אין שתי חנויות עם אותו שם.</p>') +
+    (REMOTE && shop.id ? '<div class="field"><label class="label" for="storeLink">קישור לכניסת העובדים</label><div class="code-row"><div class="field">' +
+      '<input class="input" id="storeLink" readonly dir="ltr" value="' + esc(storeLink()) + '" aria-describedby="storeLinkHelp"></div>' +
+      '<button type="button" class="btn" id="btnCopyLink" data-act="copyLink">' + icon('copy') + 'העתקה</button></div>' +
+      '<p class="sub" id="storeLinkHelp">הקישור נפתח ישר במסך הכניסה של החנות הזו. אפשר לשלוח אותו לצוות.</p></div>' : '') +
     '<div class="field"><span class="label">לוגו</span><div class="logo-row"><span class="logo-box">' + (state.logo ? '<img src="' + esc(state.logo) + '" alt="הלוגו של החנות">' : 'אין לוגו') + '</span>' +
     '<button type="button" class="btn" id="btnLogo" data-act="logoPick"' + (ui.logoBusy ? ' disabled' : '') + '>' + icon('image') + (ui.logoBusy ? 'שומר…' : state.logo ? 'החלפת הלוגו' : 'העלאת לוגו') + '</button>' +
     (state.logo ? '<button type="button" class="btn btn-quiet btn-danger" id="btnLogoDel" data-act="logoDel"' + (ui.logoBusy ? ' disabled' : '') + '>הסרה</button>' : '') + '</div>' +
@@ -1225,13 +1358,13 @@ function viewSetup() {
     (REMOTE
       ? '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם קוד המנהל/ת. החלפת הקוד מנתקת מכשירים אחרים שנכנסו כמנהל/ת.</p></div>' +
         '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת חדש (6 עד 12 ספרות)</label>' +
-        '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft || '') + '" inputmode="numeric" autocomplete="off"></div>' +
+        '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft || '') + '" inputmode="numeric" autocomplete="off"' + fieldErr(ui.codeErr, 'codeErr') + '></div>' +
         '<button type="submit" class="btn" id="btnCodeSave"' + (net.busy ? ' disabled' : '') + '>החלפת הקוד</button></form>'
       : '<section class="card stack"><div><h2 class="h2">כניסה למערכת</h2><p class="sub">עובדים נכנסים עם השם והמספר האישי שלהם, שמנוהלים בלשונית הצוות. מנהל/ת נכנס/ת עם הקוד הזה.</p></div>' +
         '<form class="code-row" data-form="codeSave" novalidate><div class="field"><label class="label" for="mgrCode">קוד מנהל/ת (4 עד 12 ספרות)</label>' +
-        '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft != null ? ui.codeDraft : state.managerCode) + '" inputmode="numeric" autocomplete="off"></div>' +
+        '<input class="input" id="mgrCode" data-bind="code.draft" value="' + esc(ui.codeDraft != null ? ui.codeDraft : state.managerCode) + '" inputmode="numeric" autocomplete="off"' + fieldErr(ui.codeErr, 'codeErr') + '></div>' +
         '<button type="submit" class="btn" id="btnCodeSave">שמירת הקוד</button></form>') +
-    (ui.codeErr ? '<p class="err" role="alert">' + ui.codeErr + '</p>' : '') + '</section>' +
+    (ui.codeErr ? '<p class="err" role="alert" id="codeErr">' + ui.codeErr + '</p>' : '') + '</section>' +
     '<section class="card stack"><div><h2 class="h2">תפקידים</h2><p class="sub">למשל קופאי/ת, אחראי/ת משמרת, או אחריות על משימה מסוימת. הקשה על הצבע פותחת ' + COLORS + ' צבעים לבחירה.</p></div>' + roles +
     '<div><button type="button" class="btn" id="btnAddRole" data-act="roleAdd">' + icon('plus') + 'תפקיד</button></div></section>' +
     '<section class="card stack"><div><h2 class="h2">משמרות ותקן איוש</h2><p class="sub">לכל משמרת: שעות, כמה עובדים נדרשים מכל תפקיד, ובאילו ימים היא פעילה.</p></div>' +
@@ -1246,7 +1379,7 @@ function viewSetup() {
         '<p class="sub">כל שינוי נשמר אוטומטית במסד הנתונים של החנות ומגיע לשאר המכשירים תוך כחצי דקה. עובדים רואים רק את הזמינות שלהם, את שמות הצוות ואת הסידורים שפורסמו.</p></section>'
       : backupCard() + '<section class="card stack"><h2 class="h2">על האב־טיפוס</h2>' +
         '<p class="sub">הנתונים נשמרים בדפדפן של המכשיר הזה בלבד, והכניסה בשם ובמספר היא הדמיה שלא מגינה עליהם. בגרסה שמחוברת למסד הנתונים כל עובד/ת מגיש/ה זמינות מהטלפון האישי והמנהל/ת רואה הכול במקום אחד.</p>' +
-        '<div>' + resetBtn() + '</div></section>');
+        (state.example ? '<div>' + resetBtn() + '</div>' : '') + '</section>');
 }
 
 function themeCard() {
@@ -1382,8 +1515,11 @@ async function restoreFile(file) {
 // Put other data in place of what is here. What was here is set aside first, so it can be brought back.
 function replaceData(data, msg) {
   keep('restore', JSON.stringify(state));
-  const agreed = (state.consentLog || {}).manager;
+  const agreed = (state.consentLog || {}).manager, was = state.store.name;
   state = migrate(data);
+  // The store takes the name in the data when it can: a usable one that no other store here has.
+  const name = state.store.name.trim().replace(/\s+/g, ' ');
+  state.store.name = name.length >= 2 && name.length <= 60 && !shop.list.some(x => x.id !== shop.id && normName(x.name) === normName(name)) ? name : was;
   state.prefs = { session: { role: 'manager' }, demoNote: false };
   state.consentLog = agreed ? { manager: agreed } : {};
   ui.week = defaultWeek();
@@ -1392,6 +1528,7 @@ function replaceData(data, msg) {
   window.scrollTo(0, 0);
   toast(msg);
 }
+const storeLink = () => location.origin + location.pathname + '?store=' + shop.id;
 function resetBtn() {
   return ui.confirm === 'reset'
     ? '<span class="confirm"><button type="button" class="btn btn-danger-solid" id="cf-reset" data-act="reset">כן, לאפס הכול</button><button type="button" class="btn" data-act="confirmNo">ביטול</button></span>'
@@ -1399,8 +1536,9 @@ function resetBtn() {
 }
 function viewSignin() {
   const f = ui.signin, asEmp = f.tab === 'employee';
-  const demoEmp = empById('e_shadi');
-  const demo = !REMOTE && state.example && state.managerCode === DEMO_CODE;
+  const demoEmp = state.example ? empById('e_shadi') : null;
+  // Demo: while a store still has the example manager code, the screen says so, so nobody is locked out.
+  const hint = !REMOTE && state.managerCode === DEMO_CODE;
   const fields = asEmp
     ? '<div class="field"><label class="label" for="siName">שם</label><input class="input" id="siName" data-bind="si.name" value="' + esc(f.name) + '" autocomplete="username" autocapitalize="off" spellcheck="false"></div>' +
       secretField('siNumber', 'מספר אישי', 'si.number', f.number, 'current-password')
@@ -1415,28 +1553,90 @@ function viewSignin() {
     (f.err ? '<p class="err" role="alert">' + f.err + '</p>' : '') +
     '<button type="submit" class="btn btn-primary btn-block" id="btnSignIn"' + (net.busy ? ' disabled' : '') + '>' + (net.busy ? 'נכנס…' : 'כניסה') + '</button>' +
     (legalPage('terms') && legalPage('privacy') ? '<p class="sub legal-note">השימוש באתר כפוף ל<a href="#terms" id="siTerms">תנאי השימוש</a> ול<a href="#privacy" id="siPrivacy">מדיניות הפרטיות</a>.</p>' : '') + '</form>' +
-    (demo ? '<div class="demo"><strong>נתוני דוגמה לכניסה</strong><span>מנהל/ת: קוד ' + ltr(DEMO_CODE) +
+    (hint ? '<div class="demo"><strong>' + (state.example ? 'נתוני דוגמה לכניסה' : 'קוד המנהל/ת של החנות הזו') + '</strong><span>מנהל/ת: קוד ' + ltr(DEMO_CODE) +
       (demoEmp && demoEmp.number === '1004' ? ' · עובד/ת: ' + esc(demoEmp.name) + ', מספר אישי ' + ltr('1004') : '') + '</span>' +
       '<div class="demo-row"><button type="button" class="btn" id="demoMgr" data-act="demoIn" data-role="manager">כניסה כמנהל/ת</button>' +
       (demoEmp ? '<button type="button" class="btn" id="demoEmp" data-act="demoIn" data-role="employee">כניסה בתור ' + esc(demoEmp.name) + '</button>' : '') + '</div></div>' : '') +
+    '<div class="signin-foot"><p class="sub">לא החנות שלך? <a href="#stores" id="siSwitch">החלפת חנות</a></p>' +
     (REMOTE
-      ? '<div class="signin-foot"><p class="sub">שכחת את המספר האישי? המנהל/ת יכול/ה לקבוע לך מספר חדש בלשונית הצוות.</p></div>'
-      : '<div class="signin-foot"><p class="sub">אב־טיפוס: הנתונים נשמרים במכשיר הזה בלבד.</p>' + resetBtn() + '</div>') +
+      ? '<p class="sub">שכחת את המספר האישי? המנהל/ת יכול/ה לקבוע לך מספר חדש בלשונית הצוות.</p>'
+      : '<p class="sub">אב־טיפוס: הנתונים נשמרים במכשיר הזה בלבד.</p>' + (state.example ? resetBtn() : '')) + '</div>' +
     '</section>';
 }
-// First visit to a new database: the manager chooses the manager code.
-function viewFirstRun() {
-  const f = ui.setup;
-  return '<section class="signin">' +
-    '<div class="signin-h"><h1 class="h1">הגדרה ראשונה</h1><p class="sub">בוחרים קוד מנהל/ת. איתו נכנסים לניהול הסידור, הצוות וההגדרות.</p></div>' +
-    '<form class="card form" id="setupForm" data-form="setupGo" novalidate>' +
-    secretField('suCode', 'קוד מנהל/ת (6 עד 12 ספרות)', 'su.code', f.code, 'new-password') +
-    secretField('suCode2', 'שוב, לאישור', 'su.code2', f.code2, 'new-password') +
+/* ---------- front screens: the product's page, choosing a store, opening one ---------- */
+const backHome = () => '<p class="legal-back"><a href="#home" id="frontBack">' + icon('right') + 'חזרה</a></p>';
+// A sample day, drawn with the same pieces as the real roster.
+function lpDemo() {
+  const row = (color, role, name, hours) => '<div class="pos"><span class="role hl-' + color + '">' + role + '</span><span class="pos-who"><span class="pos-n">' + name + '</span>' +
+    (hours ? '<span class="pos-h">' + ltr(hours) + '</span>' : '') + '</span><span class="pos-x"></span></div>';
+  return '<div class="lp-demo" role="img" aria-label="דוגמה לסידור של יום ראשון: משמרת בוקר ומשמרת ערב, ולכל עמדה תפקיד ושם"><div aria-hidden="true">' +
+    '<div class="day is-ok"><div class="day-h"><span class="day-n">ראשון</span><span class="day-d t">' + dm(fromKey(defaultWeek())) + '</span><span class="day-s is-ok">מלא</span></div>' +
+    '<div class="shift"><div class="shift-h"><span class="shift-n">בוקר</span>' + ltr('07:00–15:00') + '<span class="shift-c t">3/3</span></div>' +
+    row(1, 'אחראי/ת משמרת', 'יוסי') + row(4, 'קופאי/ת', 'תמר') + row(4, 'קופאי/ת', 'שאדי', '11:30–13:50') + '</div>' +
+    '<div class="shift"><div class="shift-h"><span class="shift-n">ערב</span>' + ltr('15:00–23:00') + '<span class="shift-c t">3/3</span></div>' +
+    row(1, 'אחראי/ת משמרת', 'מיכל') + row(4, 'קופאי/ת', 'דנה') + row(3, 'מחסנאי/ת', 'עומר') + '</div></div></div></div>';
+}
+function viewLanding() {
+  const s = state.prefs.session, signedIn = shop.id && (REMOTE ? net.phase === 'ready' : !!s);
+  const cta = id => (signedIn ? '<button type="button" class="btn btn-primary btn-lg" id="' + id + 'Go" data-act="continueStore">המשך אל ' + esc(state.store.name || 'החנות') + '</button>' : '') +
+    '<a class="btn btn-lg' + (signedIn ? '' : ' btn-primary') + '" id="' + id + 'Enter" href="#stores">' + (signedIn ? 'חנות אחרת' : 'כניסה לחנות') + '</a>' +
+    '<a class="btn btn-lg" id="' + id + 'Open" href="#open">פתיחת חנות חדשה</a>';
+  const steps = [
+    ['פותחים חנות', 'בוחרים שם וקוד מנהל/ת, מגדירים את התפקידים והמשמרות, ומוסיפים את הצוות ביד או מקובץ אקסל.'],
+    ['העובדים מגישים זמינות', 'כל עובד/ת נכנס/ת מהטלפון עם שם ומספר אישי, ומסמן/ת מתי אפשר, מה מועדף, ואפילו שעות מסוימות בתוך משמרת.'],
+    ['משבצים ומפרסמים', 'שיבוץ אוטומטי בלחיצה, תיקונים ביד, ופרסום לצוות. הסידור יוצא גם כתמונה או כקובץ PDF לשליחה.'],
+  ];
+  const feats = [
+    ['wand', 'שיבוץ אוטומטי הוגן', 'לפי הזמינות, התפקידים ומקסימום המשמרות של כל עובד/ת, עם חלוקה שווה של העומס.'],
+    ['clock', 'זמינות מהטלפון', 'אפשר, מועדף, או שעות מסוימות בלבד. עם מועד אחרון להגשה.'],
+    ['bell', 'תזכורות', 'מי שלא הגיש/ה בזמן מקבל/ת התראה, והמנהל/ת רואה מי חסר.'],
+    ['down', 'קובץ לשליחה', 'הסידור כתמונה או PDF בעיצוב של החנות, או כהודעת טקסט לקבוצה.'],
+    ['image', 'המראה של החנות', 'לוגו, צבעים משלכם, ותצוגה בהירה או כהה.'],
+    ['lock', 'פרטיות', 'בלי פרסומות ובלי מעקב. הקודים נשמרים מוצפנים, וכל חנות רואה רק את הנתונים שלה.'],
+  ];
+  return '<section class="lp-hero"><div class="lp-copy"><p class="lp-kicker">סידור עבודה שבועי לחנויות</p>' +
+    '<h1 class="lp-h1">הסידור של השבוע, <span class="lp-mark">מוכן בכמה דקות</span></h1>' +
+    '<p class="lp-lead">העובדים מגישים זמינות מהטלפון. סדרן מציע סידור לפי התפקידים והמשמרות של החנות, והמנהל/ת מתקן/ת, מפרסם/ת ושולח/ת לצוות.</p>' +
+    '<div class="lp-cta">' + cta('lp') + '</div>' +
+    (shop.id && !signedIn && state.store.name ? '<p class="sub">במכשיר הזה נכנסו לאחרונה אל ' + esc(state.store.name) + '. <a href="#" id="lpLast">כניסה אליה</a></p>' : '') +
+    '</div>' + lpDemo() + '</section>' +
+    '<section class="lp-sec"><h2 class="lp-h2">איך זה עובד</h2><ol class="lp-steps">' +
+    steps.map((x, i) => '<li class="card"><span class="lp-num" aria-hidden="true">' + (i + 1) + '</span><h3 class="lp-h3">' + x[0] + '</h3><p class="sub">' + x[1] + '</p></li>').join('') + '</ol></section>' +
+    '<section class="lp-sec"><h2 class="lp-h2">מה יש בסדרן</h2><ul class="lp-feats">' +
+    feats.map(x => '<li class="card"><span class="lp-ic" aria-hidden="true">' + icon(x[0]) + '</span><h3 class="lp-h3">' + x[1] + '</h3><p class="sub">' + x[2] + '</p></li>').join('') + '</ul></section>' +
+    '<section class="lp-end card"><h2 class="lp-h2">מתחילים?</h2><p class="sub">פתיחת חנות לוקחת דקה: שם וקוד מנהל/ת. אחר כך מוסיפים את הצוות ושולחים לו את הקישור.</p><div class="lp-cta">' + cta('lp2') + '</div></section>';
+}
+function storesHtml() {
+  const st = ui.stores;
+  if (st.err) return '<p class="err" role="alert">' + st.err + '</p><div><button type="button" class="btn" id="storesRetry" data-act="storesRetry">ניסיון חוזר</button></div>';
+  if (st.list === null) return '<p class="sub" aria-busy="true">טוען…</p>';
+  if (!st.list.length) return '<p class="sub">' + (st.q.trim() ? 'לא נמצאה חנות בשם הזה.' : 'עדיין אין חנויות.') + '</p>';
+  return '<ul class="shops">' + st.list.map(x => '<li><button type="button" class="shop" data-act="pickStore" data-id="' + esc(x.id) + '"><span class="shop-n">' + esc(x.name || 'חנות בלי שם') + '</span>' + icon('left') + '</button></li>').join('') + '</ul>' +
+    (st.more ? '<p class="sub">מוצגות 30 החנויות הראשונות. אפשר לצמצם בחיפוש.</p>' : '');
+}
+function paintStores() { const el = $('#storeList'); if (el) el.innerHTML = storesHtml(); }
+function viewStores() {
+  return '<section class="signin">' + backHome() +
+    '<div class="signin-h"><h1 class="h1">באיזו חנות?</h1><p class="sub">בוחרים את החנות, ואז נכנסים עם השם והמספר האישי, או עם קוד המנהל/ת.</p></div>' +
+    '<div class="card form"><div class="field"><label class="label" for="storeQ">חיפוש לפי שם החנות</label>' +
+    '<input class="input" id="storeQ" type="search" data-bind="stores.q" value="' + esc(ui.stores.q) + '" autocomplete="off" enterkeyhint="search"></div>' +
+    '<div class="stack" id="storeList" aria-live="polite">' + storesHtml() + '</div></div>' +
+    '<p class="sub">החנות עוד לא כאן? <a href="#open" id="stOpen">פתיחת חנות חדשה</a></p></section>';
+}
+// Open a new store: its name and the manager code, with the agreement to the terms.
+function viewOpen() {
+  const f = ui.newStore;
+  return '<section class="signin">' + backHome() +
+    '<div class="signin-h"><h1 class="h1">פתיחת חנות חדשה</h1><p class="sub">בוחרים שם לחנות וקוד מנהל/ת. עם הקוד נכנסים לניהול הסידור, הצוות וההגדרות.</p></div>' +
+    '<form class="card form" id="openForm" data-form="openGo" novalidate>' +
+    '<div class="field"><label class="label" for="opName">שם החנות או הסניף</label><input class="input" id="opName" data-bind="op.name" value="' + esc(f.name) + '" autocomplete="organization" maxlength="60" placeholder="למשל: מכולת הפינה, סניף רמת גן"></div>' +
+    secretField('opCode', 'קוד מנהל/ת (6 עד 12 ספרות)', 'op.code', f.code, 'new-password') +
+    secretField('opCode2', 'שוב, לאישור', 'op.code2', f.code2, 'new-password') +
     consentBoxes('ag', consentsFor('manager'), ui.agree) +
     (f.err ? '<p class="err" role="alert">' + f.err + '</p>' : '') +
-    '<button type="submit" class="btn btn-primary btn-block" id="btnSetup"' + (net.busy ? ' disabled' : '') + '>' + (net.busy ? 'שומר…' : 'שמירה וכניסה') + '</button></form>' +
+    '<button type="submit" class="btn btn-primary btn-block" id="btnOpen"' + (net.busy ? ' disabled' : '') + '>' + (net.busy ? 'פותח…' : 'פתיחת החנות') + '</button></form>' +
     '<p class="sub">כדאי לבחור קוד שקשה לנחש, ולא לשתף אותו עם העובדים. אפשר להחליף אותו אחר כך בהגדרות.</p>' +
-    '</section>';
+    '<p class="sub">כבר יש לך חנות? <a href="#stores" id="opEnter">כניסה לחנות</a></p></section>';
 }
 const viewLoading = () => '<section class="gate" aria-busy="true"><p>טוען…</p></section>';
 const viewDown = () => '<section class="signin"><div class="card empty"><h1 class="h2">אין חיבור לשרת</h1>' +
@@ -2455,6 +2655,8 @@ function linkErrors(root, prefix, st) {
   const bad = st && st.err && st.bad ? document.getElementById(st.bad) : null;
   if (bad && root.contains(bad)) bad.setAttribute('aria-invalid', 'true');
 }
+// For a field whose message is shown outside its form: mark the field and point it at the message.
+const fieldErr = (err, id, help) => (err ? ' aria-invalid="true" aria-describedby="' + id + '"' : help ? ' aria-describedby="' + help + '"' : '');
 function renderSheet(opening) {
   const root = $('#sheetRoot'), s = ui.sheet;
   const def = s ? SHEETS[s.type](s) : null;
@@ -2471,8 +2673,10 @@ function renderSheet(opening) {
   if (opening) $('.sheet', root).focus({ preventScroll: true });
 }
 const GATES = {
+  landing: { title: 'סידור עבודה שבועי לחנויות', html: () => viewLanding(), wide: true },
+  stores: { title: 'בחירת חנות', html: () => viewStores() },
+  open: { title: 'פתיחת חנות חדשה', html: () => viewOpen() },
   signin: { title: 'כניסה', html: () => viewSignin() },
-  setup: { title: 'הגדרה ראשונה', html: () => viewFirstRun() },
   loading: { title: 'טוען', html: () => viewLoading() },
   down: { title: 'אין חיבור לשרת', html: () => viewDown() },
   agree: { title: 'אישור התנאים', html: () => viewAgree() },
@@ -2481,6 +2685,7 @@ const GATES = {
 let lastRoute;
 function render() {
   const key = focusKey(document.activeElement), hadSheet = !!$('#sheetRoot .sheet');
+  if (state.example && !stillExample(state)) state.example = false;
   let s = state.prefs.session;
   if (s && s.role === 'employee' && !empById(s.id)) {
     if (REMOTE && net.phase === 'ready') { endSession('removed'); return; }
@@ -2488,13 +2693,21 @@ function render() {
   }
   const who = subjectKey() || '';
   if (ui.agreeFor !== who) { ui.agreeFor = who; ui.agree = { checked: {}, fields: {}, err: '', busy: false }; }
-  let gate = ui.unsub ? 'unsub' : REMOTE ? (net.phase === 'ready' ? null : net.phase) : (s ? null : 'signin');
+  // A front screen asked for by name comes first; otherwise a signed-in person gets the app, and
+  // anyone else the sign-in screen of the store this device knows, or the product's front page.
+  const signedIn = !!shop.id && (REMOTE ? net.phase === 'ready' : !!s);
+  let gate = ui.unsub ? 'unsub'
+    : REMOTE && (net.phase === 'loading' || net.phase === 'down') ? net.phase
+    : ui.entry ? ui.entry
+    : signedIn ? null : shop.id ? 'signin' : 'landing';
   if (!gate && needsAgreement().length) gate = 'agree';
   if (gate && ui.sheet && ui.sheet.type !== 'privacy') ui.sheet = null;
+  // The front screens belong to the product, not to a store: its own colours, and no store name.
+  const neutral = !shop.id || !!ui.entry;
   const main = $('#view'), logoEl = $('#brandLogo');
-  applyTheme();
-  $('#storeName').textContent = state.store.name;
-  if (state.logo) {
+  applyTheme(neutral);
+  $('#storeName').textContent = neutral ? '' : state.store.name;
+  if (state.logo && !neutral) {
     if (logoEl.getAttribute('src') !== state.logo) logoEl.src = state.logo;
     logoEl.alt = 'לוגו';   // the store's name follows it as text
     logoEl.hidden = false;
@@ -2518,11 +2731,11 @@ function render() {
   }
   let html, title, wide = false;
   if (ui.legal) { html = viewLegal(ui.legal); title = (legalPage(ui.legal) || {}).title || 'מסמך'; }
-  else if (gate) { const g = GATES[gate] || GATES.signin; html = g.html(); title = g.title; }
+  else if (gate) { const g = GATES[gate] || GATES.signin; html = g.html(); title = g.title; wide = !!g.wide; }
   else { const v = VIEWS[ui.view]; html = v.html(); title = v.label; wide = !!v.wide; }
   main.className = 'main' + (wide ? '' : ' is-narrow');
   main.innerHTML = html;
-  linkErrors(main, 'view', ui.legal ? null : gate === 'setup' ? ui.setup : gate === 'agree' ? ui.agree : null);
+  linkErrors(main, 'view', ui.legal ? null : gate === 'open' ? ui.newStore : gate === 'agree' ? ui.agree : null);
   $('#foot').innerHTML = footHtml();
   paintCookie();
   renderSheet(false);
@@ -2594,23 +2807,55 @@ function toast(html, undo) {
 }
 // Which screen the address asks for: a legal page (open to everyone), or one of the app's views.
 // `forced` names the screen directly, for a host that does not let the page change its address.
+const FRONT = { home: 'landing', stores: 'stores', open: 'open' };
 function applyRoute(forced) {
   let h = '';
   try { h = forced != null ? forced : decodeURIComponent(location.hash.slice(1)); } catch (e) { h = ''; }
   const s = state.prefs.session;
   ui.legal = legalPage(h) ? h : null;
   if (ui.legal) return;
-  ui.lastHash = VIEWS[h] ? h : '';
+  ui.lastHash = VIEWS[h] || FRONT[h] ? h : '';
+  const was = ui.entry;
+  ui.entry = FRONT[h] || null;
+  if (ui.entry === 'stores' && was !== 'stores') storesFetch(0);
   if (s && VIEWS[h] && VIEWS[h].mode === s.role) ui.view = h;
+}
+// The list on the "which store" screen: in the demo the stores kept in this browser, on the hosted
+// site whatever the database finds for what was typed.
+let storesTimer;
+function storesFetch(delay) {
+  const st = ui.stores;
+  clearTimeout(storesTimer);
+  if (!REMOTE) {
+    const q = normName(st.q);
+    st.list = shop.list.filter(x => !q || normName(x.name).indexOf(q) >= 0).map(x => ({ id: x.id, name: x.name })).sort((a, b) => a.name.localeCompare(b.name, 'he'));
+    st.more = false;
+    st.err = '';
+    paintStores();
+    return;
+  }
+  const seq = ++st.seq;
+  if (!delay) { st.list = null; st.err = ''; paintStores(); }
+  storesTimer = setTimeout(async () => {
+    let out = null, failed = false;
+    try { out = await rpc('sadran_stores', { p_query: st.q }); } catch (err) { failed = true; }
+    if (seq !== st.seq) return;   // a newer search is on its way
+    st.list = failed ? [] : (out && out.stores) || [];
+    st.more = !failed && !!(out && out.more);
+    st.err = failed ? NET_ERR : '';
+    paintStores();
+  }, delay);
 }
 // Signing out: back to the plain address, unless a legal page is open, which stays.
 function clearRoute() {
   ui.lastHash = '';
+  ui.entry = null;
   parked = null;
   try { if (location.hash && !ui.legal) location.hash = ''; } catch (e) { /* hash routing is optional */ }
 }
 function go(view) {
   ui.view = view;
+  ui.entry = null;
   ui.legal = null;
   ui.lastHash = view;
   parked = null;
@@ -2656,13 +2901,14 @@ const actions = {
       render();
       let out = null;
       try {
-        out = asMgr ? await rpc('sadran_login_manager', { p_code: f.code }) : await rpc('sadran_login_employee', { p_name: f.name, p_number: f.number });
+        out = asMgr ? await rpc('sadran_login_manager', { p_store: shop.id, p_code: f.code })
+          : await rpc('sadran_login_employee', { p_store: shop.id, p_name: f.name, p_number: f.number });
       } catch (err) { f.err = NET_ERR; }
+      if (out && out.ok) { await endOther(); net.busy = false; tokenSet(out.token, shop.id); if (!(await enter())) remoteStart(); return; }
       net.busy = false;
-      if (out && out.ok) { tokenSet(out.token); if (!(await enter())) remoteStart(); return; }
       if (out) {
         f.err = out.error === 'locked' ? 'היו יותר מדי ניסיונות שגויים. אפשר לנסות שוב בעוד 15 דקות.'
-          : out.error === 'not_configured' ? 'עדיין לא נקבע קוד מנהל/ת.'
+          : out.error === 'no_store' ? 'החנות הזו כבר לא קיימת. אפשר לבחור חנות אחרת.'
           : asMgr ? 'הקוד שגוי.' : 'השם והמספר לא תואמים לאף עובד/ת ברשימה. אפשר לבדוק אותם מול המנהל/ת.';
       }
       render();
@@ -2680,44 +2926,139 @@ const actions = {
     render();
   },
   demoIn(ds) { startSession(ds.role === 'manager' ? { role: 'manager' } : { role: 'employee', id: 'e_shadi' }); },
-  async setupGo() {
-    const f = ui.setup, c = normNum(f.code);
+  // Open a new store, and enter it as its manager.
+  async openGo() {
+    const f = ui.newStore, name = f.name.trim().replace(/\s+/g, ' '), c = normNum(f.code);
     if (net.busy) return;
-    const asked = consentsFor('manager');
-    f.err = !/^\d{6,12}$/.test(c) ? 'הקוד צריך להיות 6 עד 12 ספרות.' : c !== normNum(f.code2) ? 'שני הקודים לא זהים.'
-      : !legal.ready ? 'לא הצלחתי לטעון את תנאי השימוש. כדאי לטעון את הדף מחדש ולנסות שוב.' : consentError(asked, ui.agree, 'ag');
-    f.bad = !/^\d{6,12}$/.test(c) ? 'suCode' : c !== normNum(f.code2) ? 'suCode2' : ui.agree.bad;
+    const asked = consentsFor('manager'), fresh = () => ({ checked: {}, fields: {}, err: '', busy: false });
+    const badName = name.length < 2 || name.length > 60 ? 'שם החנות צריך להיות 2 עד 60 תווים.'
+      : !REMOTE && shop.list.some(x => normName(x.name) === normName(name)) ? 'כבר יש חנות בשם הזה. אפשר להוסיף את שם הסניף או העיר.' : '';
+    f.err = badName || (!/^\d{6,12}$/.test(c) ? 'הקוד צריך להיות 6 עד 12 ספרות.' : c !== normNum(f.code2) ? 'שני הקודים לא זהים.'
+      : !legal.ready ? 'לא הצלחתי לטעון את תנאי השימוש. כדאי לטעון את הדף מחדש ולנסות שוב.' : consentError(asked, ui.agree, 'ag'));
+    f.bad = badName ? 'opName' : !/^\d{6,12}$/.test(c) ? 'opCode' : c !== normNum(f.code2) ? 'opCode2' : ui.agree.bad;
     if (f.err) { render(); return; }
+    const opened = 'החנות נפתחה. עכשיו מוסיפים את הצוות בלשונית "צוות".';
+    if (!REMOTE) {
+      const id = uid('s'), st = blankState();
+      st.store = { name };
+      st.managerCode = c;
+      st.prefs = { session: { role: 'manager' }, demoNote: false };
+      shop.list.push({ id, key: 'sadran.s.' + id, name });
+      shop.id = id;
+      state = st;
+      await recordConsents(asked, ui.agree, 'open-store');
+      ui.agree = fresh();
+      ui.newStore = { name: '', code: '', code2: '', err: '', bad: '' };
+      ui.week = defaultWeek();
+      ui.undo = null;
+      shopsWrite();
+      go('schedule');
+      toast(opened);
+      return;
+    }
     net.busy = true;
     render();
     let out = null;
-    try { out = await rpc('sadran_setup', { p_code: c }); } catch (err) { f.err = NET_ERR; }
+    try { out = await rpc('sadran_open_store', { p_name: name, p_code: c }); } catch (err) { f.err = NET_ERR; }
     if (out && out.ok) {
-      tokenSet(out.token);
+      await endOther();   // this device was signed in to another store
+      tokenSet(out.token, out.store);
+      shop.id = out.store;
       // The agreement given on this form. If saving it fails, the agreement screen asks again after sign-in.
-      try { await recordConsents(asked, ui.agree, 'first-run'); } catch (err) { /* asked again below */ }
-      ui.agree = { checked: {}, fields: {}, err: '', busy: false };
+      try { await recordConsents(asked, ui.agree, 'open-store'); } catch (err) { /* asked again below */ }
+      ui.agree = fresh();
       net.busy = false;
       if (!(await enter())) { remoteStart(); return; }
-      toast('קוד המנהל/ת נשמר. עכשיו מוסיפים את הצוות בלשונית "צוות".');
+      toast(opened);
       return;
     }
     net.busy = false;
-    if (out && out.error === 'already_configured') {
-      net.phase = 'signin';
-      ui.signin.tab = 'manager';
-      ui.signin.err = 'כבר נקבע קוד מנהל/ת. נכנסים איתו כאן.';
-    } else if (out) f.err = 'הקוד צריך להיות 6 עד 12 ספרות.';
+    if (out) {
+      f.err = out.error === 'name_taken' ? 'כבר יש חנות בשם הזה. אפשר להוסיף את שם הסניף או העיר.'
+        : out.error === 'busy' ? 'נפתחו הרבה חנויות בזמן קצר. אפשר לנסות שוב בעוד רבע שעה.'
+        : out.error === 'name' ? 'שם החנות צריך להיות 2 עד 60 תווים.' : 'הקוד צריך להיות 6 עד 12 ספרות.';
+      f.bad = out.error === 'name_taken' || out.error === 'name' ? 'opName' : out.error === 'busy' ? '' : 'opCode';
+    }
     render();
+  },
+  // Choose a store from the list: its sign-in screen, or straight in when this device is signed in to it.
+  async pickStore(ds) {
+    const id = ds.id, view = () => (state.prefs.session.role === 'manager' ? 'schedule' : 'my-availability');
+    if (!REMOTE) {
+      const rec = shopRec(id);
+      if (!rec) return;
+      let st = load(rec);
+      if (!st && id === 'main') {   // the first store's data could not be read (a copy was set aside): the example takes its place
+        shop.id = id; state = seed(); autoSchedule(defaultWeek(), false); save(); st = state;
+      }
+      if (!st) { toast('אי אפשר לקרוא את הנתונים של החנות הזו במכשיר הזה.'); return; }
+      shop.id = id;
+      state = st;
+      shopsWrite();
+      ui.signin = { tab: 'employee', name: '', number: '', code: '', err: '' };
+      ui.week = defaultWeek();
+      ui.undo = null;
+      ui.storeDraft = null; ui.storeErr = '';
+      if (st.prefs.session) go(view()); else routeTo('');
+      return;
+    }
+    if (net.busy) return;
+    if (net.phase === 'ready' && shop.id === id) { go(view()); return; }
+    // The sign-in this device holds is for this store: straight in.
+    const kept = tokenRead();
+    if (net.phase !== 'ready' && kept && kept.store === id) { net.token = kept.token; if (await enter(id)) return; }
+    net.busy = true;
+    let st = null, failed = false;
+    try { st = await rpc('sadran_status', { p_store: id }); } catch (err) { failed = true; }
+    if (failed) { net.busy = false; ui.stores.err = NET_ERR; paintStores(); return; }
+    if (!st || !st.found) { net.busy = false; toast('החנות הזו כבר לא קיימת.'); storesFetch(0); return; }
+    if (net.phase === 'ready') await stepOut();   // looking at another store does not sign out of this one
+    await useStore(st);
+    net.busy = false;
+    routeTo('');
+    render();
+  },
+  storesRetry() { storesFetch(0); },
+  // From the front page, back into the store this device is signed in to.
+  continueStore() { const s = state.prefs.session; if (s) go(s.role === 'manager' ? 'schedule' : 'my-availability'); },
+  async storeRename() {
+    const name = (ui.storeDraft != null ? ui.storeDraft : state.store.name).trim().replace(/\s+/g, ' ');
+    if (net.busy) return;
+    if (name === state.store.name) { ui.storeDraft = null; ui.storeErr = ''; render(); return; }
+    const taken = 'כבר יש חנות בשם הזה. אפשר להוסיף את שם הסניף או העיר.', length = 'שם החנות צריך להיות 2 עד 60 תווים.';
+    ui.storeErr = name.length < 2 || name.length > 60 ? length : !REMOTE && shop.list.some(x => x.id !== shop.id && normName(x.name) === normName(name)) ? taken : '';
+    if (ui.storeErr) { render(); return; }
+    if (REMOTE) {
+      net.busy = true;
+      render();
+      let out = null;
+      try { out = await rpc('sadran_rename_store', { p_token: net.token, p_name: name }); }
+      catch (err) { net.busy = false; if (err && err.code === 'auth') { endSession('expired'); return; } ui.storeErr = NET_ERR; render(); return; }
+      net.busy = false;
+      if (!out || !out.ok) { ui.storeErr = out && out.error === 'name_taken' ? taken : length; render(); return; }
+      state.store.name = out.name;
+    } else state.store.name = name;
+    ui.storeDraft = null;
+    ui.storeErr = '';
+    render();
+    toast('שם החנות עודכן.');
+  },
+  async copyLink() {
+    const inp = $('#storeLink');
+    if (!inp) return;
+    let ok = false;
+    try { await navigator.clipboard.writeText(inp.value); ok = true; }
+    catch (e) { try { inp.select(); ok = document.execCommand('copy'); } catch (e2) { ok = false; } }
+    toast(ok ? 'הקישור הועתק.' : 'אפשר לסמן את הקישור ולהעתיק אותו.');
   },
   retryBoot() { remoteStart(); },
   skip(ds, el, e) { e.preventDefault(); const m = $('#view'); m.focus(); m.scrollIntoView(); },
   // The name in the header leads to the person's first screen; from a legal page, back to where they were.
   home(ds, el, e) {
     e.preventDefault();
-    const s = state.prefs.session;
-    if (s && (!REMOTE || net.phase === 'ready') && !needsAgreement().length) go(s.role === 'manager' ? 'schedule' : 'my-availability');
-    else if (ui.legal) routeTo('');
+    const s = state.prefs.session, signedIn = !!shop.id && !!s && (!REMOTE || net.phase === 'ready');
+    if (signedIn && !ui.entry && !needsAgreement().length) go(s.role === 'manager' ? 'schedule' : 'my-availability');
+    else routeTo('home');
   },
   async agreeGo() {
     const st = ui.agree, list = agreeList();
@@ -2791,15 +3132,7 @@ const actions = {
     if (reload) setTimeout(() => location.reload(), 700);
   },
   async signOut() {
-    if (REMOTE) {
-      const t = net.token;
-      if (pending()) { flushAll(false); await waitIdle(4000); }
-      await dropPushSub(t);
-      push.state = 'unknown';
-      rpc('sadran_logout', { p_token: t }).catch(() => { /* the session expires on its own */ });
-      endSession();
-      return;
-    }
+    if (REMOTE) { await closeSession(); endSession(); return; }
     state.prefs.session = null;
     ui.sheet = null;
     clearToast();
@@ -3273,7 +3606,7 @@ const actions = {
     let data = null;
     try { data = c && cleanState(JSON.parse(c.data)); } catch (e) { data = null; }
     if (!data) { toast('העותק הזה כבר לא זמין.'); render(); return; }
-    if (ds.why !== 'restore') { try { localStorage.removeItem(KEEP_KEY + ds.why); } catch (e) { /* it is simply offered again */ } }
+    if (ds.why !== 'restore') { try { localStorage.removeItem(keepName(ds.why, shop.id)); } catch (e) { /* it is simply offered again */ } }
     replaceData(data, 'הנתונים הקודמים הוחזרו.');
   },
   reset() {
@@ -3340,15 +3673,16 @@ document.addEventListener('input', e => {
   const v = t.value, id = t.dataset.id;
   const paint = (attr, text) => document.querySelectorAll('[' + attr + '="' + id + '"]').forEach(n => { n.textContent = text; });
   if (b.slice(0, 3) === 'si.') { ui.signin[b.slice(3)] = v; return; }
-  if (b.slice(0, 3) === 'su.') { ui.setup[b.slice(3)] = v; return; }
+  if (b.slice(0, 3) === 'op.') { ui.newStore[b.slice(3)] = v; return; }
+  if (b === 'stores.q') { ui.stores.q = v; storesFetch(REMOTE ? 250 : 0); return; }
+  if (b === 'store.draft') { ui.storeDraft = v; return; }
   if (b.slice(0, 3) === 'cf.') { const q = b.split('.'), st = consentState(q[1]); if (st) (st.fields[q[2]] || (st.fields[q[2]] = {}))[q[3]] = v; return; }
   if (b === 'code.draft') { ui.codeDraft = v; return; }
   if (b === 'theme.custom') { state.theme = { preset: 'custom', custom: v }; applyTheme(); save(); return; }
   if (b.slice(0, 3) === 'tr.') { const q = b.split('.'); if (ui.sheet && ui.sheet.ranges) ui.sheet.ranges[+q[1]][+q[2]] = v; return; }
   if (b.slice(0, 3) === 'dl.') return;
   if (b === 'draft.name' || b === 'draft.number') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft[b.slice(6)] = v; return; }
-  if (b === 'store.name') { state.store.name = v; $('#storeName').textContent = v; }
-  else if (b === 'role.name') { roleById(id).name = v; paint('data-rn', v || 'ללא שם'); }
+  if (b === 'role.name') { roleById(id).name = v; paint('data-rn', v || 'ללא שם'); }
   else if (b === 'shift.name') { shiftById(id).name = v; paint('data-sn', v); }
   else if (b === 'shift.start' || b === 'shift.end') { if (!v) return; const sh = shiftById(id); sh[b.slice(6)] = v; paint('data-st', sh.start + '–' + sh.end); }
   else if (b === 'note') availRec(ui.week, id, true).note = v;
@@ -3358,7 +3692,12 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'xlsxFile') { if (t.files && t.files[0]) importFile(t.files[0]); return; }
   if (t.id === 'logoFile') { if (t.files && t.files[0]) uploadLogo(t.files[0]); return; }
-  if (t.id === 'backupFile') { if (t.files && t.files[0]) restoreFile(t.files[0]); return; }
+  if (t.id === 'backupFile') {   // emptied once read, so choosing the same file again is noticed
+    const f = t.files && t.files[0];
+    t.value = '';
+    if (f) restoreFile(f);
+    return;
+  }
   const b = t.dataset && t.dataset.bind;
   if (b === 'imp.remove' && ui.sheet) { ui.sheet.remove = t.checked; render(); return; }
   if (b && b.slice(0, 3) === 'cc.') {
@@ -3397,20 +3736,22 @@ document.addEventListener('keydown', e => {
   else if (!e.shiftKey && (at === last || !box.contains(at))) { e.preventDefault(); first.focus(); }
 });
 function onRoute(forced) {
-  const was = ui.legal, view = ui.view, key = focusKey(document.activeElement);
+  const was = ui.legal, place = (ui.entry || '') + '|' + ui.view, key = focusKey(document.activeElement);
   applyRoute(forced);
-  if (ui.legal === was && ui.view === view) return;
+  const now = (ui.entry || '') + '|' + ui.view;
+  if (ui.legal === was && (ui.legal || now === place)) return;
   let back = null;
-  if (ui.legal && !was) parked = { sheet: ui.sheet, from: sheetFrom, view, y: window.scrollY, key };
+  if (ui.legal && !was) parked = { sheet: ui.sheet, from: sheetFrom, place, y: window.scrollY, key };
   else if (!ui.legal && was) { back = parked; parked = null; }
   else if (!ui.legal) parked = null;
-  ui.sheet = back && back.view === ui.view ? back.sheet : null;
+  const same = !!back && back.place === now;
+  ui.sheet = same ? back.sheet : null;
   if (ui.sheet) sheetFrom = back.from;
   render();
   if (ui.legal) { window.scrollTo(0, 0); $('#view').focus({ preventScroll: true }); return; }
   // Back from a legal page: the same place, and the same dialog if one was open.
-  window.scrollTo(0, back && back.view === ui.view ? back.y : 0);
-  if (!(back && restoreFocus(back.key))) { const box = $('#sheetRoot .sheet') || $('#view'); box.focus({ preventScroll: true }); }
+  window.scrollTo(0, same ? back.y : 0);
+  if (!(same && restoreFocus(back.key))) { const box = $('#sheetRoot .sheet') || $('#view'); box.focus({ preventScroll: true }); }
 }
 window.addEventListener('hashchange', () => onRoute());
 // Go to a screen by its address. Where the address cannot change (some embeddings), go there directly.
@@ -3436,13 +3777,15 @@ async function boot() {
   const texts = loadLegal();
   await Promise.race([texts, new Promise(done => setTimeout(done, 4000))]);
   const onTime = legal.ready;
+  const showFront = !REMOTE && demoStart();
   applyRoute();
+  // Data from before there were several stores: the new front page is shown once, with a way straight back in.
+  if (showFront && !ui.legal && !ui.entry && !location.hash) ui.entry = 'landing';
   applyCookieChoice();
   if (REMOTE) await remoteStart();
   else {
     const h = location.hash.slice(1), sess = state.prefs.session;
     ui.view = sess && VIEWS[h] && VIEWS[h].mode === sess.role ? h : (sess && sess.role === 'employee' ? 'my-availability' : 'schedule');
-    if (firstRun) autoSchedule(ui.week, false);   // the example opens on a proposed roster rather than an empty sheet
     render();
   }
   if (!onTime) texts.then(ok => { if (ok) legalArrived(); else legalLater(0); });

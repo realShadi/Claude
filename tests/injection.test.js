@@ -15,12 +15,14 @@ const EVIL = ['<img src=x onerror="window.__x=1">', '"><script>window.__x=2</scr
   reg.cookies.categories[0].items[0].why += '<img src=x onerror="window.__x=14">';
   bundle['legal.json'] = JSON.stringify(reg);
   fs.writeFileSync(path.join(L.BUILD, 'page-evil.html'), html.slice(0, m.index) + m[1] + JSON.stringify(bundle).replace(/<\//g, '<\\/') + m[3] + html.slice(m.index + m[0].length));
-  const page = await L.demoPage(browser, s);
-  await page.goto('file://' + path.join(L.BUILD, 'page-evil.html')); await page.waitForSelector('#signForm');
+  const page = await L.demoPage(browser, s, { front: true });
+  await page.goto('file://' + path.join(L.BUILD, 'page-evil.html')); await page.waitForSelector('#lpEnter');
   const clean = async where => {
     const r = await page.evaluate(() => ({ x: window.__x, bad: document.querySelectorAll('img[src="x"], script:not([src]):not(#legalBundle):not([type]), iframe, svg[onload], [onerror], [onclick], [onmouseover], a[href^="javascript:"], a[href^="data:"]').length - document.querySelectorAll('body > script:not([src]):not([type])').length }));
     s.check('no markup or script from data: ' + where, r.x === undefined && r.bad <= 0, r);
   };
+  await clean('front page');
+  await L.enterStore(page);
   await clean('sign-in');
   for (const id of ['privacy', 'terms', 'cookies']) { await page.click('#foot a[href="#' + id + '"]'); await page.waitForFunction(i => location.hash === '#' + i && document.querySelector('article.legal h2'), id); await clean(id + ' page'); }
   s.check('the hostile business name is shown as plain text', (await page.textContent('article.legal')) !== null);
@@ -34,7 +36,7 @@ const EVIL = ['<img src=x onerror="window.__x=1">', '"><script>window.__x=2</scr
   // 2. hostile text typed into every free-text field
   const tab = v => page.click('#tabsBottom .tab[data-view="' + v + '"]');
   await tab('setup');
-  await page.fill('#storeInput', EVIL[0]);
+  await page.fill('#storeInput', EVIL[0]); await page.click('#btnStoreName');
   for (const id of await page.$$eval('input[data-bind="role.name"]', e => e.map(x => x.id))) await page.fill('#' + id, EVIL[1]);
   for (const id of await page.$$eval('input[data-bind="shift.name"]', e => e.map(x => x.id))) await page.fill('#' + id, EVIL[2]);
   await clean('settings while typing');
@@ -53,7 +55,9 @@ const EVIL = ['<img src=x onerror="window.__x=1">', '"><script>window.__x=2</scr
   await page.reload(); await page.waitForSelector('#btnOut'); await clean('after reload');
   s.check('the store name shows as text in the header', (await L.txt(page, '#storeName')) === EVIL[0], await L.txt(page, '#storeName'));
   await page.click('#btnOut'); await page.waitForSelector('#signForm'); await clean('sign-in after');
-  await page.click('#demoEmp'); await L.passGate(page); await clean('employee availability');
+  // the renamed store is no longer the example, so there is no quick way in: sign in as one of its people
+  await page.fill('#siName', 'נועה'); await page.fill('#siNumber', '1001'); await page.click('#btnSignIn');
+  await L.passGate(page); await clean('employee availability');
   await page.click('#tabsBottom .tab[data-view="my-shifts"]'); await clean('employee shifts');
   s.errors.splice(0, s.errors.length, ...s.errors.filter(e => !/ERR_FILE_NOT_FOUND|net::ERR/.test(e)));
   await browser.close();

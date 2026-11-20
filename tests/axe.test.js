@@ -25,14 +25,20 @@ async function run(browser, scheme, size) {
   const s = L.suite();
   const tag = scheme + '/' + size;
   const vp = size === 'mobile' ? { width: 390, height: 844 } : { width: 1280, height: 860 };
-  const page = await L.demoPage(browser, s, { viewport: vp, colorScheme: scheme });
+  const page = await L.demoPage(browser, s, { viewport: vp, colorScheme: scheme, front: true });
   if (process.argv[4]) {   // a store theme, e.g. '{"preset":"forest"}'
     await page.evaluate(t => { const st = JSON.parse(localStorage.getItem('sadran.v1')); st.theme = JSON.parse(t); localStorage.setItem('sadran.v1', JSON.stringify(st)); }, process.argv[4]);
-    await page.reload(); await page.waitForSelector('#signForm');
+    await page.reload(); await page.waitForSelector('#lpEnter');   // the theme belongs to the store; the front page keeps the product's colours
   }
   const tab = v => page.click((size === 'mobile' ? '#tabsBottom' : '#tabsTop') + ' .tab[data-view="' + v + '"]');
   const shut = async () => { await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('#sheetRoot .sheet')); };
   const at = name => audit(page, tag + ' ' + name);
+  await at('front page + cookie notice');
+  await page.click('#lpOpen'); await page.waitForSelector('#openForm'); await page.click('#btnOpen'); await at('open a store, error');
+  await page.click('#opEnter'); await page.waitForSelector('.shop'); await at('store list');
+  await page.fill('#storeQ', 'אין חנות כזו'); await at('store list, nothing found');
+  await page.fill('#storeQ', '');
+  await page.click('.shop'); await page.waitForSelector('#signForm');
   await at('sign-in + cookie notice');
   await page.click('#ckMore'); await page.waitForSelector('#sheetRoot .sheet'); await at('cookie preferences'); await shut();
   await page.click('#ckNone');

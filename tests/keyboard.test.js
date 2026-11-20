@@ -3,6 +3,7 @@ const L = require('./lib');
 (async () => {
   const s = L.suite(), browser = await L.launch();
   const page = await L.demoPage(browser, s, { viewport: { width: 1280, height: 860 } });
+  await page.reload(); await page.waitForSelector('#signForm');   // a fresh arrival at the store's sign-in screen, with focus at the top of the page
   const at = () => page.evaluate(() => { const a = document.activeElement; return a ? (a.id || a.getAttribute('data-act') || a.getAttribute('href') || a.tagName) : null; });
   const ring = () => page.evaluate(() => { const a = document.activeElement, c = getComputedStyle(a); return c.outlineStyle !== 'none' && parseFloat(c.outlineWidth) >= 2; });
   const press = async (k, n) => { for (let i = 0; i < (n || 1); i++) await page.keyboard.press(k); };

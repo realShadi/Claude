@@ -2,6 +2,8 @@
 
 Everything legal on the site is in this folder. The app reads these files when it loads and has no legal text of its own, so editing a text, a business detail or a consent never needs a code change.
 
+The site serves many stores, and these texts are the same for all of them: they are the operator's terms and policies, and `business.json` holds the operator's details, not those of any one store.
+
 | File | What it holds |
 |---|---|
 | `business.json` | The business details that fill the placeholders in the texts. **Start here.** |
@@ -50,13 +52,13 @@ The page is then served at `#returns`, linked from the footer of every screen (`
 
 ## Consents
 
-Each entry of `consents` in `legal.json` is one thing a person can agree to. The answer is saved in the database (`sadran.consents`) with the person, the version of the text, the time, and the screen it was given on. Nothing is overwritten: every change is a new row, so there is a history.
+Each entry of `consents` in `legal.json` is one thing a person can agree to. The answer is saved in the database (`sadran.consents`) with the store, the person, the version of the text, the time, and the screen it was given on (`open-store` for the form that opens a store, `sign-in` for the screen after a first sign-in, `preferences` for the privacy settings). Nothing is overwritten: every change is a new row, so there is a history.
 
 | Field | Meaning |
 |---|---|
 | `id` | Short name, saved with every answer. Do not change it later. |
 | `enabled` | `false` hides the consent completely. |
-| `required` | `true`: the site cannot be used without it. Shown as a box that is never ticked in advance, on the first-run form and after the first sign-in. `false`: optional, a separate box, also never ticked in advance. |
+| `required` | `true`: the site cannot be used without it. Shown as a box that is never ticked in advance, on the form that opens a store and after a person's first sign-in. `false`: optional, a separate box, also never ticked in advance. |
 | `version` | Raise it when the text behind the consent changes. For a required consent everyone is asked again. |
 | `audience` | Who is asked: `"manager"`, `"employee"` or both. |
 | `title` | Short name shown in the privacy settings. |
@@ -74,7 +76,7 @@ The `marketing` consent is defined but **switched off** (`"enabled": false`), be
 - the person can withdraw it at any time under **הגדרות עוגיות** in the footer;
 - every answer gets an unsubscribe code. A link of the form `https://<the site>/?unsubscribe=<code>` withdraws the consent without signing in. Put that link in every message.
 
-The site itself does not send email or SMS. Whatever tool sends them must read the current recipients from `sadran.consent_recipients('marketing')`, which returns only people whose latest answer is yes, together with their unsubscribe code.
+The site itself does not send email or SMS. Whatever tool sends them must read the current recipients from `sadran.consent_recipients('marketing')`, which returns only people whose latest answer is yes, together with their store and their unsubscribe code.
 
 ## Cookies and what the site stores
 
