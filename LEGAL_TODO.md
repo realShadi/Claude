@@ -6,32 +6,32 @@ Nothing here is legal advice. Where this file says what a law requires, treat it
 
 Everything below is edited in `site/content/legal/` (see the `README.md` there). No code changes are needed for any of it.
 
-## 1. Fill in the business details
+## 1. Business details: filled in
 
-File: `site/content/legal/business.json`. The details are those of **the business that operates the site** for all the stores, not of any one store. An empty value shows on the site as a yellow note such as **[להשלים: שם העסק המלא]**, and the manager sees the list of missing details under **הגדרות → מסמכים משפטיים**.
+File: `site/content/legal/business.json`. The details are those of **the business that operates the site** for all the stores, not of any one store. They were filled in on 20.11.2026 with the operator (version 2.1.1):
 
-| Key | Appears in | What to write |
+| Key | Value | Notes for the lawyer |
 |---|---|---|
-| `BUSINESS_NAME` | privacy, terms, accessibility | The full legal name of the business. |
-| `BUSINESS_ID` | privacy §1 | Company or dealer number, with its label, e.g. `ח.פ. 51-1234567`. |
-| `BUSINESS_ADDRESS` | privacy §1, §15; terms §15 | Street address. |
-| `CONTACT_EMAIL` | privacy §1, §15; terms §15 | An address someone reads. Becomes a link once filled. |
-| `CONTACT_PHONE` | privacy §1, §15; terms §15 | Phone number. |
-| `PRIVACY_CONTACT` | privacy §1 | The person or role who answers privacy requests, e.g. `מנהל/ת החנות`. |
-| `SITE_URL` | privacy §2 | The public address of the site, once it is hosted. |
-| `HOSTING_PROVIDER` | privacy §7 | The company that hosts the site's files, e.g. `Netlify`. |
-| `DATA_LOCATION` | privacy §7, §8 | **Already filled: `יפן (טוקיו)`**, where the database is today. Change it if the database moves (section 3 below). |
-| `RETENTION_PERIOD` | privacy §10 | How long availability and rosters are kept, as a phrase that completes "נשמרים …", e.g. `למשך שנתיים`. See item 2.4: the site does not delete old weeks by itself. |
-| `MINORS_POLICY` | privacy §13 | One or two sentences about employees under 18. Leave for the lawyer (item 2.5). |
-| `COURT_DISTRICT` | terms §14 | The court district, e.g. `מחוז תל אביב`. |
-| `ACCESSIBILITY_COORDINATOR` | accessibility | Name of the accessibility contact person. |
-| `ACCESSIBILITY_PHONE` | accessibility | Their phone number. |
-| `ACCESSIBILITY_EMAIL` | accessibility | Their email. Becomes a link once filled. |
-| `ACCESSIBILITY_RESPONSE_TIME` | accessibility | How fast accessibility requests are answered, e.g. `14 ימי עבודה`. |
-| `ACCESSIBILITY_AUDIT` | accessibility | A sentence saying who checked the site and when. See item 2.9 for what has and has not been checked. |
-| `PHYSICAL_ACCESSIBILITY` | accessibility | The accessibility arrangements at the store itself: parking, entrance, toilets. If this statement should cover the website only, ask the lawyer whether to remove that section from `accessibility.md`. |
+| `BUSINESS_NAME` | שאדי שמסנה | A private person, not yet registered as a business. |
+| `BUSINESS_ADDRESS` | ירושלים | City only, by choice. Check whether a full address is required (privacy §1, terms §15). |
+| `CONTACT_EMAIL` | shadicraft5@gmail.com | |
+| `PRIVACY_CONTACT` | מפעיל האתר | |
+| `SITE_URL` | https://sadran.netlify.app | Change it if a domain is added. |
+| `HOSTING_PROVIDER` | Netlify, Inc. (ארצות הברית) | |
+| `DATA_LOCATION` | יפן (טוקיו) | Where the database is today (section 3 below). |
+| `RETENTION_PERIOD` | one year from the start of the week, then deleted automatically | Enforced by `sadran.purge_old()`, run nightly (`database/reminders.sql`). See item 2.4. |
+| `MINORS_POLICY` | stores may add employees under 18 and are responsible for lawful employment | See item 2.5. |
+| `COURT_DISTRICT` | מחוז ירושלים | |
+| `ACCESSIBILITY_COORDINATOR` | שאדי שמסנה | |
+| `ACCESSIBILITY_EMAIL` | shadicraft5@gmail.com | |
+| `ACCESSIBILITY_RESPONSE_TIME` | 14 ימים | |
+| `ACCESSIBILITY_AUDIT` | what was actually checked in November 2026, and that no certified accessibility professional has checked it yet | See item 2.9. |
+| `PHYSICAL_ACCESSIBILITY` | no premises open to the public; the service is online only | |
 
-After filling them in, read each page once on the site. Nothing yellow should remain.
+Left out on purpose:
+
+- **No business ID.** The operator is not registered as a business (עוסק) yet, and their personal ID number is deliberately not published. Once registered, add `BUSINESS_ID` back to `business.json` and to `placeholders` in `legal.json`, and put `{{BUSINESS_ID}}` back in privacy §1. Ask whether the operator should register before taking on stores.
+- **No phone number.** Contact is by email only, on the privacy, terms and accessibility pages. Ask whether the accessibility regulations require a phone number for the accessibility coordinator, and whether email alone is enough elsewhere.
 
 ## 2. For the lawyer
 
@@ -51,9 +51,9 @@ As understood, the amended section 11 requires the notice to say: whether giving
 
 Pointers: regulation 2(8) allows a transfer to a country that is party to Convention 108 (EU member states) or that receives data from EU member states on the same terms (countries with an EU adequacy decision, which Japan has; no statement by the Authority about Japan specifically was found). Regulation 3 requires a written undertaking from the recipient to protect the data and not to pass it on.
 
-**2.4 How long data is kept.** The site deletes failed sign-in attempts after a day, reminder records after 90 days, and everything about an employee when the manager removes them. It does **not** delete old rosters or availability by itself. Privacy §10 states a period (`RETENTION_PERIOD`): whatever is written there has to be true. Please advise on a period, taking into account how long an employer should keep scheduling records, and the duty not to keep more data than needed. Automatic deletion after a set period can be added to the site on request.
+**2.4 How long data is kept.** The site deletes failed sign-in attempts after a day, reminder records after 90 days, and everything about an employee when the manager removes them. Availability and rosters are now deleted automatically a year after the start of their week (`sadran.purge_old()`, nightly), as privacy §10 says. Please confirm a year is right, taking into account how long an employer may need scheduling records (stores can export rosters to keep their own copies) and the duty not to keep more data than needed.
 
-**2.5 Employees under 18.** Stores often employ teenagers. Please advise what `MINORS_POLICY` should say, and whether a parent's consent is needed before a minor's details are entered or before the minor agrees to the terms.
+**2.5 Employees under 18.** Stores often employ teenagers. `MINORS_POLICY` now says stores may add employees under 18 and are responsible for employing them lawfully. Please confirm the wording, and advise whether a parent's consent is needed before a minor's details are entered or before the minor agrees to the terms.
 
 **2.6 Registration, officer and security duties.** Please confirm that a store of this size does not have to register the database or appoint a privacy protection officer, and say which security level of the Privacy Protection (Data Security) Regulations, 5777-2017 applies and which documents it requires (for example a database definition document and a security procedure). The technical measures in place are listed in section 5.
 

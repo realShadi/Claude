@@ -621,6 +621,24 @@ language sql volatile security definer set search_path = '' as $$
   delete from sadran.sessions where token_hash = sadran.hash_token(p_token);
 $$;
 
+-- Availability and rosters are kept for a year from the start of their week, as the privacy policy
+-- says (RETENTION_PERIOD in site/content/legal/business.json), and then deleted. Run daily by
+-- reminders.sql. Returns how many weeks of each were deleted.
+create or replace function sadran.purge_old() returns jsonb
+language plpgsql volatile set search_path = '' as $$
+declare
+  cut date := current_date - interval '1 year';
+  a int;
+  w int;
+begin
+  delete from sadran.availability where week < cut;
+  get diagnostics a = row_count;
+  delete from sadran.weeks where week < cut;
+  get diagnostics w = row_count;
+  return jsonb_build_object('availability', a, 'weeks', w, 'before', cut);
+end $$;
+revoke all on function sadran.purge_old() from public, anon, authenticated;
+
 -- The settings as employees get them: without the order of priority the manager set in each role,
 -- which is the manager's own assessment of the team.
 create or replace function sadran.config_for_employees(p_config jsonb) returns jsonb

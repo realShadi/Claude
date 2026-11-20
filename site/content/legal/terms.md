@@ -80,4 +80,3 @@
 {{BUSINESS_NAME}}, {{BUSINESS_ADDRESS}}
 
 - דוא״ל: [{{CONTACT_EMAIL}}](mailto:{{CONTACT_EMAIL}})
-- טלפון: {{CONTACT_PHONE}}

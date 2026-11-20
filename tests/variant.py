@@ -14,7 +14,7 @@ for c in reg['consents']:
         c['enabled'] = True
         c['audience'] = ['manager', 'employee']
 bundle['legal.json'] = json.dumps(reg, ensure_ascii=False)
-biz = json.loads(bundle['business.json']); biz['BUSINESS_NAME'] = 'מרכול השכונה בע״מ'; bundle['business.json'] = json.dumps(biz, ensure_ascii=False)
+biz = json.loads(bundle['business.json']); biz['BUSINESS_NAME'] = 'מרכול השכונה בע״מ'; biz['ACCESSIBILITY_EMAIL'] = ''; bundle['business.json'] = json.dumps(biz, ensure_ascii=False)
 html = html[:m.start(2)] + json.dumps(bundle, ensure_ascii=False).replace('</', '<\\/') + html[m.end(2):]
 open(out, 'w', encoding='utf8').write(html)
 print('variant written')

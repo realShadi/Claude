@@ -21,3 +21,6 @@ select cron.schedule(
     );
   $job$
 );
+
+-- Delete availability and rosters a year after their week, every night at 03:17 UTC.
+select cron.schedule('sadran-purge-old', '17 3 * * *', $job$ select sadran.purge_old(); $job$);

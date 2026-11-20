@@ -31,7 +31,6 @@
 ## פנייה בנושא נגישות
 
 - רכז/ת הנגישות: {{ACCESSIBILITY_COORDINATOR}}
-- טלפון: {{ACCESSIBILITY_PHONE}}
 - דוא״ל: [{{ACCESSIBILITY_EMAIL}}](mailto:{{ACCESSIBILITY_EMAIL}})
 
 כדאי לציין בפנייה באיזה דף ובאיזו פעולה נתקלת בקושי, ובאיזה דפדפן ובאיזו טכנולוגיה מסייעת השתמשת. נשתדל להשיב בתוך {{ACCESSIBILITY_RESPONSE_TIME}}.

@@ -17,7 +17,7 @@ const STORE_ID_KEY = 'sadran.store';  // hosted site: the store this device last
 const SEED_NAME = 'מרכול השכונה';
 const SEED_IDS = ['e_noa', 'e_yosi', 'e_michal', 'e_shadi', 'e_dana', 'e_tamar', 'e_linoy', 'e_omer', 'e_ron', 'e_ahmad', 'e_ella'];
 const DEMO_CODE = '2468';
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 // The shared database. The key is the project's publishable key, which is meant to sit in a web page:
 // it only lets the page call the sadran_* functions, and each of those checks who is signed in.

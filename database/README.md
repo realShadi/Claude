@@ -5,7 +5,7 @@ Sadran (`site/`) is a weekly shift scheduler for stores. One site serves many st
 | File | What it is |
 |---|---|
 | `schema.sql` | The database: tables, sign-in checks and the functions the site calls. Safe to run again. |
-| `reminders.sql` | Runs the availability reminders every 10 minutes (pg_cron). Run after `schema.sql`. |
+| `reminders.sql` | Runs the availability reminders every 10 minutes, and deletes availability and rosters older than a year every night (pg_cron). Run after `schema.sql`. |
 | `employees-template.xlsx` | The layout for the employee list (name and personal number), for import in the app. Built by `../tools/make-template.py`. |
 | `../supabase/functions/sadran-remind/` | The Edge Function that sends the reminders as browser notifications. |
 | `../site/content/legal/` | The legal texts, the business details that fill them, and the consent and cookie settings. See its `README.md`. |
@@ -140,7 +140,7 @@ To check the security setup, use **Advisors → Security** in the Supabase dashb
 
 - The site keeps the minimum: a name, a hashed sign-in number, roles, availability and rosters. It asks for no email address, phone number, ID number or payment details.
 - A filled-in employee list is personal data. Prefer random codes as personal numbers rather than phone or ID numbers, keep filled-in copies of the Excel file out of repositories, and delete them after the import.
-- Deleting an employee deletes their availability, notes, consent records, notification subscriptions and sessions. Closing a store deletes all of that for everyone in it, with its settings and rosters. Failed sign-in attempts are deleted after a day and reminder records after 90 days.
+- Deleting an employee deletes their availability, notes, consent records, notification subscriptions and sessions. Closing a store deletes all of that for everyone in it, with its settings and rosters. Availability and rosters are deleted a year after the start of their week (`sadran.purge_old()`, scheduled nightly by `reminders.sql`), as the privacy policy says. Failed sign-in attempts are deleted after a day and reminder records after 90 days.
 - When a store is opened, a one-way hash of the network address it was opened from is kept for a day, to enforce the limit on opening stores. The address itself is not stored.
 - Store names are public. A store that should not be found by name can be given a name only its team recognises; the team still signs in through the store's link.
 - The database is in the Supabase region chosen when the project was created (this project: Tokyo). That is outside Israel; see `LEGAL_TODO.md`.
