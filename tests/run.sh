@@ -13,6 +13,7 @@ run consent.test.js
 run keyboard.test.js
 run injection.test.js
 run embed.test.js
+run schedule.test.js
 run axe.test.js both both
 [ $fail -eq 0 ] && echo "ALL PASSED" || echo "SOMETHING FAILED"
 exit $fail

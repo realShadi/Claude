@@ -65,6 +65,8 @@ Pointers: after Amendment 13, registration (section 8א) and a privacy protectio
 
 **2.8 The terms as a whole**, and in particular: §6 (the automatic roster is only a suggestion, and the site does not check labour-law limits), §10 (limitation of liability), §12 (how changes take effect) and §13 (governing law and court). These are standard-form terms, so clauses that limit liability or fix a court may be open to challenge under the Standard Contracts Law, 5743-1982.
 
+The manager can mark an employee as someone who may be given two shifts on the same day, and the weekly maximum can go up to every shift in the week. The site does not check daily or weekly working hours or rest periods against the Hours of Work and Rest Law; §6 says the employer stays responsible for that. Please confirm the wording is enough for a store that schedules double shifts.
+
 Who the "site operator" is should also be confirmed: the draft assumes the store runs the site for its own staff.
 
 ### Accessibility (`accessibility.md`)

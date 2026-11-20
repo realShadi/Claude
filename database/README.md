@@ -29,17 +29,18 @@ phone / computer ──► site/ (static host) ──► Supabase project (xdjei
 - Every agreement to the terms, and any optional consent, is recorded in `sadran.consents` with the person, the version of the text, the time and the screen it was given on.
 - Changes are saved automatically about a second after the last edit. Other devices pick them up within about 30 seconds, or right away when the page is opened or brought back to the front. If the connection drops, the header shows "לא נשמר" and the change is sent when it returns.
 
-Inside the Claude viewer, pages cannot reach outside services, so the site runs there as a one-device demo with example data, saved in that browser only. `python3 tools/build-demo.py out.html` folds the site into the single file the viewer needs. Notifications do not run there.
+Inside the Claude viewer, pages cannot reach outside services, so the site runs there as a one-device demo with example data, saved in that browser only. Because that data exists nowhere else, the demo sets a copy aside before a newer version of the page, a reset or a restore could replace it, and its settings screen can save everything to a backup file and load it back (**גיבוי הנתונים**). `python3 tools/build-demo.py out.html` folds the site into the single file the viewer needs. Notifications do not run there.
 
 ## What the manager can set (הגדרות)
 
 - **Store**: name and logo. The logo is resized in the browser to at most 360 px and stored in the database; each device keeps a copy and downloads it again only when it changes.
 - **Colour theme** for everyone: seven presets or any colour. The site derives the rest from it and keeps text readable in light and dark. Each person can also switch their own device between light, dark and the device setting with the button at the top of the screen.
 - **Role colours**: 12 highlight colours.
-- **Export style** for the roster as PDF or JPEG: colourful, light, dark, or print (black on white). Both the manager (any week, marked "טיוטה" if not published as shown) and employees (published weeks) can save the roster as a file.
+- **Per employee** (in צוות): the roles they can fill, the most shifts a week (from 1 up to every shift in the week, so 14 with two shifts a day), and whether they may be given **two shifts on the same day**. Without that option the minimum rest between shifts keeps everyone to one shift a day; with it, a second shift that day is allowed as long as the two do not overlap. The site does not check daily working hours against the law.
+- **Export style** for the roster as PDF or JPEG: colourful, light, dark, or print (black on white). Both the manager (any week, marked "טיוטה" if not published as shown) and employees (published weeks) can save the roster as a file. The exported roster shows names and hours only, without roles.
 - **Availability deadline**: a day and time in the week before. Employees see it on their availability screen.
 
-Employees can mark a shift as possible or preferred, and with the clock button, limit it to specific hours: up to two ranges inside the shift, for example 11:30–13:50, or 16:30 to the end of the shift. A range that ends at the shift's end follows the shift if its hours change. Automatic scheduling does not place someone in a shift they can only partly cover; the manager can, and the roster then shows their hours.
+Employees can mark a shift as possible or preferred, and with the clock button, limit it to specific hours: up to two ranges inside the shift, for example 11:30–13:50, or 16:30 to the end of the shift. A range that ends at the shift's end follows the shift if its hours change. Someone available for part of a shift can be scheduled in it, automatically or by hand, and the roster shows their hours next to their name. People free for the whole shift are placed first.
 
 ## Reminders
 
@@ -82,7 +83,7 @@ The first-run screen is open to whoever reaches the site first, so do step 2 bef
 | שם (name) | yes | What the employee types when signing in. |
 | מספר אישי (personal number) | for a new employee | 4 to 12 digits, different from the manager code. Stored as text, so a leading zero is kept. Leave it empty for someone already in the system to keep their number. |
 | תפקידים (roles) | no | Role names exactly as they appear in the app's settings, separated by commas. |
-| מקסימום משמרות בשבוע (max shifts per week) | no | A whole number from 1 to 7. Defaults to 5. |
+| מקסימום משמרות בשבוע (max shifts per week) | no | A whole number, 1 or more, up to the number of shifts in a week. Defaults to 5. |
 
 Row 2 of the template is an example. Any row whose name contains "דוגמה" is skipped on import. People are matched by name, so every name must be different: a name already in the system is updated, a new name is added. A number in the file replaces that person's number and signs them out. **ייצוא לאקסל** writes the current list back out in the same layout, with the number column empty, because the numbers cannot be read back.
 

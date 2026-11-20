@@ -3,8 +3,8 @@
 
     python3 tools/make-template.py        (needs: pip install openpyxl)
 
-The rules written into the sheet (4 to 12 digits, people matched by name) are the ones the app
-and database/schema.sql enforce. Change them here when they change there.
+The rules written into the sheet (4 to 12 digits, people matched by name, a weekly maximum of 1 or
+more) are the ones the app and database/schema.sql enforce. Change them here when they change there.
 """
 from pathlib import Path
 from openpyxl import Workbook
@@ -48,8 +48,8 @@ for row in range(2, LAST + 1):
 
 num = DataValidation(type='textLength', operator='between', formula1='4', formula2='12', allow_blank=True,
                      showErrorMessage=True, errorTitle='מספר אישי', error='המספר האישי צריך להיות 4 עד 12 ספרות.')
-mx = DataValidation(type='whole', operator='between', formula1='1', formula2='7', allow_blank=True,
-                    showErrorMessage=True, errorTitle='מקסימום משמרות', error='מספר שלם בין 1 ל-7.')
+mx = DataValidation(type='whole', operator='between', formula1='1', formula2='99', allow_blank=True,
+                    showErrorMessage=True, errorTitle='מקסימום משמרות', error='מספר שלם, 1 ומעלה.')
 ws.add_data_validation(num)
 ws.add_data_validation(mx)
 num.add(f'B2:B{LAST}')
@@ -63,7 +63,7 @@ legend = [
     'מספר אישי: 4 עד 12 ספרות, עדיף מספר אקראי ולא טלפון או תעודת זהות. נשמר כטקסט, כך שאפס בהתחלה לא נמחק.',
     'לעובד/ת חדש/ה חובה למלא מספר אישי. לעובד/ת שכבר במערכת אפשר להשאיר ריק, והמספר לא ישתנה.',
     'תפקידים (לא חובה): כפי שהם רשומים בהגדרות המערכת, מופרדים בפסיק.',
-    'מקסימום משמרות בשבוע (לא חובה): מספר שלם בין 1 ל-7. אם התא ריק, נקבע 5.',
+    'מקסימום משמרות בשבוע (לא חובה): מספר שלם, 1 ומעלה, עד מספר המשמרות שיש בשבוע. אם התא ריק, נקבע 5.',
     'ייבוא: כניסת מנהל/ת, לשונית "צוות", "ייבוא מאקסל". עובד/ת מזוהה לפי השם: שם קיים מתעדכן, שם חדש נוסף.',
     'המערכת שומרת את המספרים האישיים כגיבוב בלבד ואינה מציגה אותם שוב, לכן כדאי למסור לכל עובד/ת את המספר שלו/ה.',
     'קובץ ממולא מכיל מידע אישי: לשמור אותו במקום מוגן, ולמחוק אותו אחרי הייבוא.',

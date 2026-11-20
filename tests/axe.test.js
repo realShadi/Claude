@@ -56,6 +56,10 @@ async function run(browser, scheme, size) {
   await page.click('#btnAddEmp'); await page.waitForSelector('#sheetRoot .sheet'); await page.click('#btnEmpSave'); await at('employee dialog, error'); await shut();
   await page.setInputFiles('#xlsxFile', __dirname + '/fixtures/employees.xlsx'); await page.waitForSelector('#btnImportGo', { timeout: 20000 }); await at('import dialog'); await shut();
   await tab('setup'); await at('settings');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnBackup')]);
+  const backup = L.path.join(L.BUILD, 'axe-backup-' + scheme + '-' + size + '.json');
+  await dl.saveAs(backup);
+  await page.setInputFiles('#backupFile', backup); await page.waitForSelector('#btnRestoreGo'); await at('restore dialog'); await shut();
   await page.click('[data-act="roleColor"]'); await page.waitForSelector('#sheetRoot .sheet'); await at('colour dialog'); await shut();
   await page.click('#btnOut'); await page.waitForSelector('#signForm');
   await page.click('#demoEmp'); await L.passGate(page);

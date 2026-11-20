@@ -13,6 +13,7 @@ const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 
 const DAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
 const STORE_KEY = 'sadran.v1';
 const DEMO_CODE = '2468';
+const APP_VERSION = '1.1.0';
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 // The shared database. The key is the project's publishable key, which is meant to sit in a web page:
 // it only lets the page call the sadran_* functions, and each of those checks who is signed in.
@@ -202,6 +203,7 @@ function seed() {
   const now = Date.now();
   const s = {
     v: 2,
+    app: APP_VERSION,
     example: true,
     managerCode: DEMO_CODE,
     store: { name: 'מרכול השכונה' },
@@ -263,17 +265,37 @@ function seed() {
   return s;
 }
 
-/* ---------- state ---------- */
+/* ---------- state ----------
+   Without a database (the demo) everything is kept in this browser. That data is someone's work, so
+   a copy is set aside before anything could replace it: a newer version of the page, a reset to the
+   example data, or loading a backup. Data this version cannot read is never overwritten unseen. */
+const KEEP_KEY = 'sadran.keep.';
+function keep(why, raw) {
+  try { if (raw) localStorage.setItem(KEEP_KEY + why, JSON.stringify({ at: Date.now(), app: APP_VERSION, data: raw })); }
+  catch (e) { /* no room for a copy; the data itself is untouched */ }
+}
+function kept(why) {
+  try { const c = JSON.parse(localStorage.getItem(KEEP_KEY + why) || 'null'); return c && typeof c.data === 'string' && c.at ? c : null; }
+  catch (e) { return null; }
+}
 function load() {
+  let raw = null;
+  try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return null; }   // no storage here: the example data
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && (s.v === 1 || s.v === 2) && Array.isArray(s.employees)) return migrate(s); }
-  } catch (e) { /* storage unavailable: fall through to the example data */ }
+    const s = JSON.parse(raw);
+    if (s && (s.v === 1 || s.v === 2) && Array.isArray(s.employees)) {
+      if (s.app !== APP_VERSION) keep('update', raw);
+      return migrate(s);
+    }
+  } catch (e) { /* not readable */ }
+  keep('unreadable', raw);
   return null;
 }
 // Bring data saved by the first version up to date: sign-in numbers, a manager code, a session.
 function migrate(s) {
   if (s.v === 1) { s.example = true; s.v = 2; }
+  s.app = APP_VERSION;
   s.prefs = s.prefs || { demoNote: true };
   delete s.prefs.mode;
   delete s.prefs.me;
@@ -393,7 +415,7 @@ async function rpc(fn, args, keepalive) {
 const cfgOf = () => ({ store: state.store, roles: state.roles, shifts: state.shifts, req: state.req, closed: state.closed, rules: state.rules, theme: state.theme, exportStyle: state.exportStyle });
 const weekOf = w => ({ slots: w.slots || {}, over: w.over || {}, published: w.published || null });
 const availOf = r => ({ slots: r.slots || {}, note: r.note || '', submitted: !!r.submittedAt });
-const empOf = e => ({ id: e.id, name: e.name, roles: e.roles, max: e.max });
+const empOf = e => ({ id: e.id, name: e.name, roles: e.roles, max: e.max, double: !!e.double });
 function weekHasContent(w) {
   if (w.published || Object.keys(w.over || {}).length) return true;
   for (const k in w.slots) if (w.slots[k].some(p => p.emp)) return true;
@@ -792,18 +814,27 @@ function span(d, shId) {
   const a = mins(s.start), b = mins(s.end);
   return [d * 1440 + a, d * 1440 + (b > a ? b : b + 1440)];
 }
-function restClash(d1, sh1, d2, sh2) {
-  const A = span(d1, sh1), B = span(d2, sh2);
-  if (!A || !B) return false;
-  const gap = Math.max(B[0] - A[1], A[0] - B[1]);
-  return gap < state.rules.minRest * 60;
+// Would a shift on day d sit too close to one the person already has?
+// Someone marked as fine with two shifts a day may take a second one that day, as long as the two
+// do not overlap. Everything else follows the minimum rest the manager set.
+function tooClose(emp, mine, d, shId) {
+  const B = span(d, shId);
+  if (!B) return false;
+  const today = mine.filter(m => m.d === d).length;
+  return mine.some(m => {
+    const A = span(m.d, m.sh);
+    if (!A) return false;
+    const gap = Math.max(B[0] - A[1], A[0] - B[1]);
+    return emp.double && m.d === d && today < 2 ? gap < 0 : gap < state.rules.minRest * 60;
+  });
 }
+// The most shifts one person can be given in a week: every shift there is.
+const maxCap = () => Math.max(7, 7 * state.shifts.length);
 /* ---------- availability values ----------
    A shift is 1 (can), 2 (prefers), or { v: 1|2, t: [[from, to], ...] } for part of it (up to two
    ranges). A null end of a range means the start or end of the shift, so it follows shift changes. */
 const slotV = x => (x && typeof x === 'object' ? (x.v === 2 ? 2 : 1) : x === 2 ? 2 : x ? 1 : 0);
 const slotT = x => (x && typeof x === 'object' && Array.isArray(x.t) && x.t.length ? x.t : null);
-const fullAvail = x => !!slotV(x) && !slotT(x);
 function slotRanges(x, sh) { const t = slotT(x); return t && sh ? t.map(r => [r[0] || sh.start, r[1] || sh.end]) : null; }
 function rangesText(x, sh) { const r = slotRanges(x, sh); return r ? r.map(q => q[0] + '–' + q[1]).join(', ') : ''; }
 function hoursOf(wk, empId, k) {
@@ -817,17 +848,15 @@ function issues(wk, d, shId, roleId, emp, self) {
   if (!emp.roles.includes(roleId)) out.push('norole');
   const av = availRec(wk, emp.id);
   if (!av || !av.submittedAt) out.push('nosubmit');
-  else if (!av.slots[k]) out.push('unavail');
-  else if (slotT(av.slots[k])) out.push('partial');
+  else if (!slotV(av.slots[k])) out.push('unavail');   // marked for part of the shift counts as available; the hours are shown
   const mine = empShifts(w, emp.id, self);
   if (mine.some(m => m.k === k)) out.push('inslot');
-  else if (mine.some(m => restClash(m.d, m.sh, d, shId))) out.push('rest');
+  else if (tooClose(emp, mine, d, shId)) out.push('rest');
   if (mine.length + 1 > emp.max) out.push('max');
   return out;
 }
-const ISSUE_SHORT = { norole: 'לא בתפקיד', nosubmit: 'לא הוגשה זמינות', unavail: 'לא זמין/ה', rest: 'מנוחה קצרה', inslot: 'כפול במשמרת', partial: 'זמינות חלקית' };
-function issueText(z, e, hours) {
-  if (z === 'partial') return hours ? 'זמין/ה רק ב־' + ltr(hours) : 'זמין/ה רק בחלק מהמשמרת';
+const ISSUE_SHORT = { norole: 'לא בתפקיד', nosubmit: 'לא הוגשה זמינות', unavail: 'לא זמין/ה', rest: 'מנוחה קצרה', inslot: 'כפול במשמרת' };
+function issueText(z, e) {
   if (z === 'norole') return 'לא מוגדר/ת לתפקיד הזה';
   if (z === 'nosubmit') return 'טרם הגיש/ה זמינות';
   if (z === 'unavail') return 'לא זמין/ה במשמרת הזו';
@@ -848,8 +877,9 @@ function autoSchedule(wk, fillOnly) {
   const cands = p => state.employees.filter(e => fits(e, p));
   const score = (e, p) => {
     const load = empShifts(w, e.id).length;
-    const pref = slotV(state.avail[wk][e.id].slots[p.k]) === 2 ? 2 : 0;
-    return pref + (1 - load / e.max) * 3 - (e.roles.length - 1) * 0.6 + Math.random() * 0.8;
+    const slot = state.avail[wk][e.id].slots[p.k], pref = slotV(slot) === 2 ? 2 : 0;
+    // Someone there for only part of the shift ranks below someone free for all of it, even if they asked for it.
+    return pref - (slotT(slot) ? 2.5 : 0) + (1 - load / e.max) * 3 - (e.roles.length - 1) * 0.6 + Math.random() * 0.8;
   };
   const pick = (p, list) => list.map(e => [score(e, p), e]).sort((a, b) => b[0] - a[0])[0][1];
   const put = (p, id) => { w.slots[p.k][p.i].emp = id; };
@@ -892,20 +922,21 @@ function autoSchedule(wk, fillOnly) {
     }
     if (!fillOnly) for (const p of unfilled) tryFill(p, 2, new Set());
   }
-  // Coverage first, then granted preferences, then an even spread of the load.
+  // Coverage first, then whole-shift cover and granted preferences, then an even spread of the load.
   function quality() {
-    let filled = 0, prefs = 0;
+    let filled = 0, prefs = 0, parts = 0;
     const load = {};
     for (const k in w.slots) for (const p of w.slots[k]) {
       if (!p.emp) continue;
       filled++;
       load[p.emp] = (load[p.emp] || 0) + 1;
       const av = availRec(wk, p.emp);
-      if (av && av.slots[k] === 2) prefs++;
+      if (av && slotV(av.slots[k]) === 2) prefs++;
+      if (av && slotT(av.slots[k])) parts++;
     }
     let spread = 0;
     for (const e of state.employees) spread += Math.pow((load[e.id] || 0) / e.max, 2);
-    return filled * 100 + prefs * 2 - spread * 10;
+    return filled * 100 + prefs * 2 - parts * 3 - spread * 10;
   }
   let best = base, bestQ = -Infinity;
   for (let t = 0; t < (fillOnly ? 8 : 20); t++) {
@@ -990,9 +1021,11 @@ function weekGrid(wk, slots, opt) {
           if (opt.edit) x = icon('plus');
         } else {
           const is = opt.edit && e ? issues(wk, d, sh.id, p.role, e, { k, i }).filter(z => z !== 'max') : [];
+          const hrs = e ? hoursOf(wk, p.emp, k) : '';
           if (opt.me && p.emp === opt.me) cls += ' is-me';
           who = '<span class="pos-n">' + esc(e ? e.name : 'עובד/ת שנמחק/ה') + '</span>' +
-            (is.length ? '<span class="pos-w">' + icon('alert') + is.map(z => z === 'partial' ? 'חלקי ' + ltr(hoursOf(wk, p.emp, k)) : ISSUE_SHORT[z]).join(' · ') + '</span>' : '');
+            (hrs ? '<span class="pos-h"><span class="vh">בשעות </span>' + ltr(hrs) + '</span>' : '') +
+            (is.length ? '<span class="pos-w">' + icon('alert') + is.map(z => ISSUE_SHORT[z]).join(' · ') + '</span>' : '');
           if (opt.edit && p.lock) x = icon('lock');
         }
         const inner = roleChip(p.role) + '<span class="pos-who">' + who + '</span><span class="pos-x">' + x + '</span>';
@@ -1090,7 +1123,7 @@ function coverageRisks(wk) {
   for (let d = 0; d < 7; d++) for (const sh of state.shifts) {
     const k = sk(d, sh.id), req = required(wk, d, sh.id);
     for (const roleId in req) {
-      const have = state.employees.filter(e => e.roles.includes(roleId) && isSubmitted(wk, e.id) && fullAvail(availRec(wk, e.id).slots[k])).length;
+      const have = state.employees.filter(e => e.roles.includes(roleId) && isSubmitted(wk, e.id) && slotV(availRec(wk, e.id).slots[k])).length;
       if (have < req[roleId]) out.push({ d, sh, roleId, have, need: req[roleId] });
     }
   }
@@ -1118,7 +1151,7 @@ function viewAvailability() {
     const k = sk(d, sh.id), req = required(wk, d, sh.id), name = esc(sh.name || '');
     const need = Object.values(req).reduce((a, b) => a + b, 0);
     if (!need) return sq('cn is-off', name + ': אין עמדות', '·');
-    const have = emps.filter(e => isSubmitted(wk, e.id) && fullAvail(availRec(wk, e.id).slots[k])).length;
+    const have = emps.filter(e => isSubmitted(wk, e.id) && slotV(availRec(wk, e.id).slots[k])).length;
     return sq('cn' + (have < need ? ' is-bad' : ''), name + ': ' + have + ' זמינים, ' + need + ' נדרשים', have);
   }).join('') + '</span></td>').join('') + '</tr>';
   const risks = coverageRisks(wk);
@@ -1152,7 +1185,7 @@ function viewTeam() {
     (n ? '<section class="list">' + state.employees.map(e =>
       '<button type="button" class="item" id="emp-' + e.id + '" data-act="emp" data-id="' + e.id + '"><span class="item-main"><span class="item-n">' + esc(e.name) + '</span>' +
       '<span class="item-roles">' + (e.roles.map(roleChip).join('') || '<span class="tag tag-warn">בלי תפקיד, לא ישובץ/תשובץ אוטומטית</span>') + '</span></span>' +
-      '<span class="item-meta"><span>עד ' + e.max + ' משמרות</span>' + (isSubmitted(wk, e.id) ? '<span class="tag tag-ok">הוגשה זמינות</span>' : '<span class="tag tag-warn">טרם הוגשה</span>') + '</span>' +
+      '<span class="item-meta"><span>עד ' + e.max + ' משמרות' + (e.double ? ', אפשר שתיים ביום' : '') + '</span>' + (isSubmitted(wk, e.id) ? '<span class="tag tag-ok">הוגשה זמינות</span>' : '<span class="tag tag-warn">טרם הוגשה</span>') + '</span>' +
       icon('left') + '</button>').join('') + '</section>'
       : '<section class="card empty"><h2 class="h2">עוד אין עובדים</h2><p class="sub">מוסיפים עובד/ת עם שם ומספר אישי, או מייבאים את כל הרשימה מקובץ אקסל.</p></section>');
 }
@@ -1199,13 +1232,13 @@ function viewSetup() {
     '<div class="set-grid">' + shifts + '</div>' +
     '<div><button type="button" class="btn" id="btnAddShift" data-act="shiftAdd">' + icon('plus') + 'משמרת</button></div></section>' +
     '<section class="card stack"><h2 class="h2">כללי שיבוץ</h2>' +
-    '<div class="set-line"><div><strong>מנוחה מינימלית בין משמרות</strong><p class="sub">בשעות. החוק דורש 8 לפחות; ערך גבוה יותר מונע למשל בוקר מיד אחרי ערב, ו־0 מאפשר משמרת כפולה.</p></div>' +
+    '<div class="set-line"><div><strong>מנוחה מינימלית בין משמרות</strong><p class="sub">בשעות. החוק דורש 8 לפחות; ערך גבוה יותר מונע למשל בוקר מיד אחרי ערב. מי שמסומן/ת בלשונית הצוות כמי שאפשר לשבץ לשתי משמרות ביום, יכול/ה לקבל שתיים באותו יום בלי קשר לערך הזה.</p></div>' +
     stepper('rest', state.rules.minRest, 'rest', '', 0, 16, 'שעות מנוחה בין משמרות') + '</div>' +
-    '<p class="sub">השיבוץ האוטומטי משבץ רק מי שהגיש/ה זמינות, מוגדר/ת לתפקיד ולא עבר/ה את מקסימום המשמרות. הוא נותן עדיפות למשמרות מועדפות ומשתדל לחלק את העומס באופן שווה. שיבוץ שנעשה ידנית ננעל ולא משתנה.</p></section>' +
+    '<p class="sub">השיבוץ האוטומטי משבץ רק מי שהגיש/ה זמינות, מוגדר/ת לתפקיד ולא עבר/ה את מקסימום המשמרות. הוא נותן עדיפות למשמרות מועדפות ומשתדל לחלק את העומס באופן שווה. שיבוץ שנעשה ידנית ננעל ולא משתנה. מי שסימן/ה שעות מסוימות בתוך משמרת יכול/ה להשתבץ בה, והשעות מופיעות ליד השם; מי שזמין/ה לכל המשמרת מקבל/ת עדיפות.</p></section>' +
     (REMOTE
       ? '<section class="card stack"><h2 class="h2">שמירת הנתונים</h2>' +
         '<p class="sub">כל שינוי נשמר אוטומטית במסד הנתונים של החנות ומגיע לשאר המכשירים תוך כחצי דקה. עובדים רואים רק את הזמינות שלהם, את שמות הצוות ואת הסידורים שפורסמו.</p></section>'
-      : '<section class="card stack"><h2 class="h2">על האב־טיפוס</h2>' +
+      : backupCard() + '<section class="card stack"><h2 class="h2">על האב־טיפוס</h2>' +
         '<p class="sub">הנתונים נשמרים בדפדפן של המכשיר הזה בלבד, והכניסה בשם ובמספר היא הדמיה שלא מגינה עליהם. בגרסה שמחוברת למסד הנתונים כל עובד/ת מגיש/ה זמינות מהטלפון האישי והמנהל/ת רואה הכול במקום אחד.</p>' +
         '<div>' + resetBtn() + '</div></section>');
 }
@@ -1223,9 +1256,9 @@ function exportCard() {
   const opts = EXPORT_STYLES.map(x => {
     const C = exportColors(x.id);
     return '<button type="button" class="xopt" id="xs-' + x.id + '" data-act="xStyle" data-s="' + x.id + '" aria-pressed="' + (x.id === cur) + '">' +
-      '<span class="xopt-sw" aria-hidden="true"><i style="background:' + C.band + '"></i><i style="background:' + C.dayBg + '"></i><i style="background:' + C.panel + '"></i><i style="background:' + (C.hl ? C.hl(1) : C.line) + '"></i><i style="background:' + (C.hl ? C.hl(4) : C.ink) + '"></i></span>' + x.name + '</button>';
+      '<span class="xopt-sw" aria-hidden="true"><i style="background:' + C.band + '"></i><i style="background:' + C.dayBg + '"></i><i style="background:' + C.panel + '"></i><i style="background:' + C.ink + '"></i><i style="background:' + C.accent + '"></i></span>' + x.name + '</button>';
   }).join('');
-  return '<section class="card stack"><div><h2 class="h2">ייצוא הסידור</h2><p class="sub">העיצוב של קובצי ה־PDF והתמונה שיוצאים מהסידור, אצל המנהל/ת ואצל העובדים. התצוגה למטה היא של השבוע שנבחר בסידור.</p></div>' +
+  return '<section class="card stack"><div><h2 class="h2">ייצוא הסידור</h2><p class="sub">העיצוב של קובצי ה־PDF והתמונה שיוצאים מהסידור, אצל המנהל/ת ואצל העובדים. בקובץ מופיעים השמות בלבד, בלי התפקידים. התצוגה למטה היא של השבוע שנבחר בסידור.</p></div>' +
     '<div class="xopts" role="group" aria-label="עיצוב הקובץ">' + opts + '</div>' +
     (ui.xprev.url ? '<img class="xprev" id="xPrev" alt="תצוגה מקדימה של הסידור בעיצוב שנבחר" src="' + ui.xprev.url + '">' : '<div class="xprev" id="xPrev">מכין תצוגה מקדימה…</div>') + '</section>';
 }
@@ -1252,6 +1285,106 @@ function secretField(id, label, bind, value, autocomplete) {
   return '<div class="field"><label class="label" for="' + id + '">' + label + '</label><div class="pw">' +
     '<input class="input" id="' + id + '" type="' + (shown ? 'text' : 'password') + '" data-bind="' + bind + '" value="' + esc(value) + '" inputmode="numeric" autocomplete="' + autocomplete + '">' +
     '<button type="button" class="pw-t" id="' + id + 'Show" data-act="secretShow" data-for="' + id + '" aria-pressed="' + shown + '" aria-label="הצגת ' + label.replace(/ \(.*$/, '') + '">' + icon(shown ? 'eyeOff' : 'eye') + '</button></div></div>';
+}
+/* ---------- backup (demo) ----------
+   A backup file holds everything: settings, team, availability and rosters. Loading one replaces
+   what is here, after setting the current data aside. */
+function backupCard() {
+  const last = ['reset', 'restore'].map(w => ({ w, c: kept(w) })).filter(x => x.c).sort((a, b) => b.c.at - a.c.at)[0];
+  return '<section class="card stack"><div><h2 class="h2">גיבוי הנתונים</h2>' +
+    '<p class="sub">כל מה שהוזן כאן נשמר רק בדפדפן של המכשיר הזה. קובץ גיבוי שומר עותק של הכול: ההגדרות, הצוות, הזמינות והסידורים. הקובץ כולל את פרטי העובדים, ולכן כדאי לשמור אותו במקום מוגן.</p></div>' +
+    '<div class="acts"><button type="button" class="btn btn-primary" id="btnBackup" data-act="backupSave">' + icon('down') + 'שמירת גיבוי לקובץ</button>' +
+    '<button type="button" class="btn" id="btnRestore" data-act="backupPick">' + icon('up') + 'שחזור מקובץ גיבוי</button></div>' +
+    (last ? '<p class="banner">' + icon('undo') + '<span>נשמר בצד עותק של הנתונים שהיו כאן לפני ' + (last.w === 'reset' ? 'האיפוס' : 'השחזור') + ', ' + stamp(last.c.at) + '.</span></p>' +
+      '<div><button type="button" class="btn" id="btnKeptBack" data-act="keptBack" data-why="' + last.w + '">החזרת הנתונים האלה</button></div>' : '') +
+    '</section>';
+}
+/* Nothing in a backup file is trusted: it may have been edited, or not be a backup at all. Every
+   value is rebuilt here by type and anything else is dropped. Ids matter most, because they end up
+   inside the page's markup. Returns null when the file is not usable. */
+function cleanState(src) {
+  const ID = /^[A-Za-z0-9_-]{1,48}$/, HM = /^([01]\d|2[0-3]):[0-5]\d$/, WK = /^\d{4}-\d{2}-\d{2}$/;
+  const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+  const int = (v, lo, hi, d) => (Number.isInteger(v) && v >= lo && v <= hi ? v : d);
+  if (!src || typeof src !== 'object' || !Array.isArray(src.employees) || !Array.isArray(src.roles) || !Array.isArray(src.shifts)) return null;
+  const uniq = (list, make) => {
+    const seen = new Set(), out = [];
+    for (const x of list) { if (!x || typeof x !== 'object' || !ID.test(x.id) || seen.has(x.id)) continue; seen.add(x.id); out.push(make(x)); }
+    return out;
+  };
+  const pick = (o, ok, make) => {
+    const out = {};
+    for (const k of Object.keys(obj(o))) { if (!ok(k)) continue; const v = make(o[k]); if (v !== undefined) out[k] = v; }
+    return out;
+  };
+  const roles = uniq(src.roles, r => ({ id: r.id, name: str(r.name, 120), color: int(r.color, 1, COLORS, 1) }));
+  const shifts = uniq(src.shifts.filter(x => x && HM.test(x.start) && HM.test(x.end)), x => ({ id: x.id, name: str(x.name, 120), start: x.start, end: x.end }));
+  if (!shifts.length) return null;
+  const roleIds = new Set(roles.map(r => r.id)), shiftIds = new Set(shifts.map(x => x.id));
+  const employees = uniq(src.employees, e => ({
+    id: e.id, name: str(e.name, 120).replace(/\s+/g, ' ').trim(), number: /^\d{3,12}$/.test(e.number) ? e.number : '',
+    roles: (Array.isArray(e.roles) ? e.roles : []).filter(id => roleIds.has(id)), max: int(e.max, 1, 99, 5), double: e.double === true,
+  })).filter(e => e.name);
+  const empIds = new Set(employees.map(e => e.id));
+  const slotKey = k => k.length > 2 && k[1] === '|' && k[0] >= '0' && k[0] <= '6' && shiftIds.has(k.slice(2));
+  const counts = o => pick(o, k => roleIds.has(k), v => int(v, 0, 60, undefined));
+  const hm = v => (v == null ? null : HM.test(v) ? v : undefined);
+  const hours = x => {
+    if (x === 1 || x === 2) return x;
+    if (!x || typeof x !== 'object') return undefined;
+    const t = (Array.isArray(x.t) ? x.t : []).slice(0, 2).map(r => (Array.isArray(r) ? [hm(r[0]), hm(r[1])] : [undefined])).filter(r => r[0] !== undefined && r[1] !== undefined);
+    return t.length ? { v: x.v === 2 ? 2 : 1, t } : (x.v === 2 ? 2 : 1);
+  };
+  const positions = list => (Array.isArray(list) ? list.slice(0, 80) : []).filter(q => q && typeof q === 'object' && ID.test(q.role))
+    .map(q => ({ role: q.role, emp: empIds.has(q.emp) ? q.emp : null, lock: q.lock === true }));
+  const slots = o => pick(o, slotKey, positions);
+  const rules = obj(src.rules), dl = obj(rules.deadline), theme = obj(src.theme);
+  return {
+    v: 2, app: APP_VERSION, example: src.example === true,
+    managerCode: /^\d{4,12}$/.test(src.managerCode) ? src.managerCode : DEMO_CODE,
+    store: { name: str(obj(src.store).name, 120) },
+    roles, shifts, employees,
+    req: pick(src.req, k => shiftIds.has(k), counts),
+    closed: pick(src.closed, slotKey, v => (v === true ? true : undefined)),
+    rules: { minRest: int(rules.minRest, 0, 16, 10), deadline: { on: dl.on === true, day: int(dl.day, 0, 6, 4), time: HM.test(dl.time) ? dl.time : '18:00', tz: /^[A-Za-z0-9_+\/-]{0,60}$/.test(dl.tz) ? dl.tz : '' } },
+    theme: theme.preset === 'custom' && /^#[0-9a-f]{6}$/i.test(theme.custom) ? { preset: 'custom', custom: theme.custom } : { preset: PRESETS.some(q => q.id === theme.preset) ? theme.preset : 'blue' },
+    exportStyle: EXPORT_STYLES.some(x => x.id === src.exportStyle) ? src.exportStyle : 'color',
+    logo: typeof src.logo === 'string' && src.logo.length < 600000 && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(src.logo) ? src.logo : null,
+    avail: pick(src.avail, k => WK.test(k), wk => pick(wk, k => empIds.has(k), r => ({
+      slots: pick(obj(r).slots, slotKey, hours), note: str(obj(r).note, 4000), submittedAt: Number.isFinite(obj(r).submittedAt) ? obj(r).submittedAt : null,
+    }))),
+    weeks: pick(src.weeks, k => WK.test(k), w => {
+      const pub = obj(obj(w).published);
+      return { slots: slots(obj(w).slots), over: pick(obj(w).over, slotKey, counts), published: Number.isFinite(pub.at) ? { at: pub.at, slots: slots(pub.slots) } : null };
+    }),
+    prefs: { session: null, demoNote: false },
+    consentLog: {},
+  };
+}
+async function restoreFile(file) {
+  let data = null, saved = null;
+  try {
+    if (file.size > 20e6) throw new Error('size');
+    const j = JSON.parse(await file.text());
+    data = cleanState(j && j.app === 'sadran' && j.data ? j.data : j);
+    saved = j && typeof j.saved === 'string' ? Date.parse(j.saved) || null : null;
+  } catch (e) { data = null; }
+  if (!data) { toast('הקובץ הזה אינו גיבוי של סדרן, או שהוא פגום.'); return; }
+  openSheet({ type: 'restore', data, saved }, 'btnRestore');
+}
+// Put other data in place of what is here. What was here is set aside first, so it can be brought back.
+function replaceData(data, msg) {
+  keep('restore', JSON.stringify(state));
+  const agreed = (state.consentLog || {}).manager;
+  state = migrate(data);
+  state.prefs = { session: { role: 'manager' }, demoNote: false };
+  state.consentLog = agreed ? { manager: agreed } : {};
+  ui.week = defaultWeek();
+  ui.undo = null; ui.sheet = null; ui.codeDraft = null; ui.codeErr = '';
+  render();
+  window.scrollTo(0, 0);
+  toast(msg);
 }
 function resetBtn() {
   return ui.confirm === 'reset'
@@ -1390,6 +1523,17 @@ function remindText(wk) {
 }
 
 const SHEETS = {
+  restore(s) {
+    const d = s.data;
+    return {
+      title: 'שחזור מגיבוי',
+      body: '<p class="sub">' + (s.saved ? 'הגיבוי נשמר ' + stamp(s.saved) + '. ' : '') + 'יש בו: ' +
+        [esc(d.store.name || 'חנות בלי שם'), many(d.employees.length, 'עובד/ת אחד/ת', 'עובדים'), many(d.shifts.length, 'משמרת אחת', 'משמרות'),
+          many(Object.keys(d.weeks).length, 'שבוע אחד של סידורים', 'שבועות של סידורים')].join(' · ') + '.</p>' +
+        '<p class="banner banner-warn">' + icon('alert') + '<span>השחזור יחליף את כל הנתונים שבמכשיר הזה. עותק של הנתונים הנוכחיים יישמר בצד, ואפשר יהיה להחזיר אותו מההגדרות.</span></p>',
+      foot: '<button type="button" class="btn btn-primary" id="btnRestoreGo" data-act="restoreGo">שחזור</button><button type="button" class="btn" data-act="close">ביטול</button>',
+    };
+  },
   privacy(s) {
     if (!legal.ready) return null;
     const opt = optionalCats();
@@ -1470,15 +1614,15 @@ const SHEETS = {
     });
     const cur = rows.find(r => r.e.id === p.emp);
     const rest = rows.filter(r => r.e.id !== p.emp);
-    const fit = rest.filter(r => !r.is.length).sort((a, b) => (b.pref - a.pref) || (a.load / a.e.max - b.load / b.e.max));
+    const fit = rest.filter(r => !r.is.length).sort((a, b) => (!!a.hours - !!b.hours) || (b.pref - a.pref) || (a.load / a.e.max - b.load / b.e.max));
     const stretch = rest.filter(r => r.is.length && !r.is.includes('norole') && !r.is.includes('inslot')).sort((a, b) => a.is.length - b.is.length);
     const busy = rest.filter(r => r.is.includes('inslot') && !r.is.includes('norole'));
     const norole = rest.filter(r => r.is.includes('norole'));
     const loadTxt = r => '<bdi class="t" dir="ltr">' + r.load + '/' + r.e.max + '</bdi> משמרות';
     const row = (r, kind) => {
       const sub = kind === 'fit'
-        ? '<span class="cand-s' + (r.pref ? ' is-good' : '') + '">' + (r.pref ? 'מעדיף/ה את המשמרת · ' : 'זמין/ה · ') + loadTxt(r) + '</span>'
-        : '<span class="cand-s is-warn">' + r.is.map(z => issueText(z, r.e, r.hours)).join(' · ') + '</span>';
+        ? '<span class="cand-s' + (r.pref ? ' is-good' : '') + '">' + (r.pref ? 'מעדיף/ה את המשמרת' : 'זמין/ה') + (r.hours ? ' בשעות ' + ltr(r.hours) : '') + ' · ' + loadTxt(r) + '</span>'
+        : '<span class="cand-s is-warn">' + r.is.map(z => issueText(z, r.e)).join(' · ') + '</span>';
       return kind === 'busy'
         ? '<div class="cand"><span class="cand-n">' + esc(r.e.name) + '</span>' + sub + '</div>'
         : '<button type="button" class="cand" data-act="assign" data-emp="' + r.e.id + '"><span class="cand-n">' + esc(r.e.name) + '</span>' + sub + '<span class="cand-go">שיבוץ</span></button>';
@@ -1488,7 +1632,7 @@ const SHEETS = {
     if (cur) {
       const is = cur.is.filter(z => z !== 'inslot');
       body += '<div class="grp"><div class="grp-h">משובץ/ת כעת</div><div class="cands"><div class="cand is-cur"><span class="cand-n">' + esc(cur.e.name) + '</span>' +
-        '<span class="cand-s' + (is.length ? ' is-warn' : '') + '">' + (is.length ? is.map(z => issueText(z, cur.e, cur.hours)).join(' · ') : loadTxt(cur)) + '</span></div></div>' +
+        '<span class="cand-s' + (is.length ? ' is-warn' : '') + '">' + (is.length ? is.map(z => issueText(z, cur.e)).join(' · ') : (cur.hours ? 'בשעות ' + ltr(cur.hours) + ' · ' : '') + loadTxt(cur)) + '</span></div></div>' +
         '<div class="quick"><button type="button" class="chipbtn" id="posLock" data-act="lock">' + (p.lock ? 'שחרור הנעילה' : 'נעילת השיבוץ') + '</button>' +
         '<button type="button" class="chipbtn" id="posClear" data-act="unassign">הסרת השיבוץ</button>' +
         '<span class="sub">' + (p.lock ? 'נעול: שיבוץ אוטומטי לא ישנה אותו.' : 'לא נעול: שיבוץ אוטומטי עשוי לשנות אותו.') + '</span></div></div>';
@@ -1562,7 +1706,9 @@ const SHEETS = {
           : 'זה המספר שהעובד/ת יקליד/ה בכניסה. כדאי לרשום אותו עכשיו: אחרי השמירה אי אפשר להציג אותו שוב, רק להחליף.') + '</p></div>' +
         '<div class="field"><span class="label">תפקידים שהעובד/ת יכול/ה למלא</span><div class="pick">' +
         state.roles.map(r => '<button type="button" class="pickbtn" id="er-' + r.id + '" aria-pressed="' + d.roles.includes(r.id) + '" data-act="empRole" data-id="' + r.id + '">' + icon('check') + roleChip(r.id) + '</button>').join('') + '</div></div>' +
-        '<div class="field field-row"><span class="label">מקסימום משמרות בשבוע</span>' + stepper('emax', d.max, 'empMax', '', 1, 7, 'מקסימום משמרות בשבוע') + '</div>' +
+        '<div class="field field-row"><span class="label">מקסימום משמרות בשבוע</span>' + stepper('emax', d.max, 'empMax', '', 1, maxCap(), 'מקסימום משמרות בשבוע') + '</div>' +
+        '<div class="field"><label class="check" for="empDouble"><input type="checkbox" id="empDouble" data-bind="draft.double"' + (d.double ? ' checked' : '') + ' aria-describedby="empDoubleHelp"><span>אפשר לשבץ לשתי משמרות באותו יום</span></label>' +
+        '<p class="sub" id="empDoubleHelp">למי שרוצה לעבוד פעמיים ביום. בלי הסימון, המנוחה המינימלית בין משמרות מונעת זאת. כדאי לוודא שסך שעות העבודה ביום עומד בדרישות החוק.</p></div>' +
         legalNote('הפרטים נשמרים כדי לבנות את הסידור. לפני שמוסיפים עובד/ת יש ליידע אותו/ה על כך.', 'lnEmp') +
         (s.err ? '<p class="err" role="alert">' + s.err + '</p>' : ''),
       foot: '<button type="button" class="btn btn-primary" id="btnEmpSave" data-act="empSave"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? 'שומר…' : 'שמירה') + '</button>' +
@@ -1661,7 +1807,7 @@ function parseEmployees(wb) {
         });
       }
     }
-    if (cols.max) { const m = parseInt(cellText(row.getCell(cols.max)), 10); if (m >= 1 && m <= 7) item.max = m; }
+    if (cols.max) { const m = parseInt(cellText(row.getCell(cols.max)), 10); if (m >= 1) item.max = Math.min(m, maxCap()); }
     out.push(item);
   }
   return out;
@@ -1776,10 +1922,10 @@ const EXPORT_STYLES = [
 function exportColors(style) {
   const tk = themeTokens(state.theme), L = tk.light, D = tk.dark;
   const base = { miss: '#BE2A1E', missBg: '#FBE3E0', draft: '#8A5000', draftBg: '#FCECC8' };
-  if (style === 'dark') return Object.assign(base, { bg: D.bg, panel: D.surface, ink: D.ink, ink3: D['ink-3'], line: D.line, band: D.surface, bandInk: D.ink, title: D.ink, dayBg: D['surface-2'], dayInk: D.ink, accent: D.accent, hl: n => (HL[n - 1] || HL[11])[1], chipInk: D.ink, miss: '#FF8E82', missBg: '#471A1B', draft: '#F2BA5C', draftBg: '#3D2D0C', plate: true });
-  if (style === 'print') return Object.assign(base, { bg: '#FFFFFF', panel: '#FFFFFF', ink: '#000000', ink3: '#4A4A4A', line: '#8C8C8C', band: '#FFFFFF', bandInk: '#000000', title: '#000000', dayBg: '#E9E9E9', dayInk: '#000000', accent: '#000000', hl: null, chipInk: '#000000', miss: '#000000', missBg: '#FFFFFF', draft: '#000000', draftBg: '#E9E9E9', rule: true });
-  if (style === 'light') return Object.assign(base, { bg: '#FFFFFF', panel: '#FFFFFF', ink: L.ink, ink3: L['ink-3'], line: L.line, band: '#FFFFFF', bandInk: L['ink-3'], title: L.accent, dayBg: L['accent-soft'], dayInk: L.ink, accent: L.accent, hl: n => (HL[n - 1] || HL[11])[0], chipInk: L.ink, rule: true });
-  return Object.assign(base, { bg: L.bg, panel: '#FFFFFF', ink: L.ink, ink3: L['ink-3'], line: L.line, band: L.accent, bandInk: L['accent-ink'], title: L['accent-ink'], dayBg: L.accent, dayInk: L['accent-ink'], accent: L.accent, hl: n => (HL[n - 1] || HL[11])[0], chipInk: L.ink, plate: true });
+  if (style === 'dark') return Object.assign(base, { bg: D.bg, panel: D.surface, ink: D.ink, ink3: D['ink-3'], line: D.line, band: D.surface, bandInk: D.ink, title: D.ink, dayBg: D['surface-2'], dayInk: D.ink, accent: D.accent, miss: '#FF8E82', missBg: '#471A1B', draft: '#F2BA5C', draftBg: '#3D2D0C', plate: true });
+  if (style === 'print') return Object.assign(base, { bg: '#FFFFFF', panel: '#FFFFFF', ink: '#000000', ink3: '#4A4A4A', line: '#8C8C8C', band: '#FFFFFF', bandInk: '#000000', title: '#000000', dayBg: '#E9E9E9', dayInk: '#000000', accent: '#000000', miss: '#000000', missBg: '#FFFFFF', draft: '#000000', draftBg: '#E9E9E9', rule: true, print: true });
+  if (style === 'light') return Object.assign(base, { bg: '#FFFFFF', panel: '#FFFFFF', ink: L.ink, ink3: L['ink-3'], line: L.line, band: '#FFFFFF', bandInk: L['ink-3'], title: L.accent, dayBg: L['accent-soft'], dayInk: L.ink, accent: L.accent, rule: true });
+  return Object.assign(base, { bg: L.bg, panel: '#FFFFFF', ink: L.ink, ink3: L['ink-3'], line: L.line, band: L.accent, bandInk: L['accent-ink'], title: L['accent-ink'], dayBg: L.accent, dayInk: L['accent-ink'], accent: L.accent, plate: true });
 }
 const F_BODY = '"IBM Plex Sans Hebrew", "Noto Sans Hebrew", "Arial Hebrew", Arial, sans-serif';
 const F_DISP = '"Secular One", "IBM Plex Sans Hebrew", "Arial Hebrew", Arial, sans-serif';
@@ -1813,9 +1959,9 @@ function runsWidth(g, runs) { return runs.reduce((a, r) => { g.font = r.font; re
 async function drawRoster(wk, slots, styleId, opt) {
   opt = opt || {};
   await fontsReady();
-  const C = exportColors(styleId), print = !C.hl;
+  const C = exportColors(styleId), print = !!C.print;
   const W = 2000, M = 56, LW = 200, DW = (W - 2 * M - LW) / 7, start = fromKey(wk), end = addDays(start, 6);
-  const POS = 80, HRS = 30, PADV = 18, HEAD = 200, DAYH = 92, FOOT = 70;
+  const POS = 54, HRS = 30, PADV = 18, HEAD = 200, DAYH = 92, FOOT = 70;   // one line per person: the name, without the role
   const hoursFor = (p, k) => (p.emp ? hoursOf(wk, p.emp, k) : '');
   const rowH = state.shifts.map(sh => {
     let tallest = 0;
@@ -1889,21 +2035,17 @@ async function drawRoster(wk, slots, styleId, opt) {
       }
       let py = y + PADV;
       for (const p of list) {
-        const role = roleById(p.role), e = p.emp ? empById(p.emp) : null, hrs = hoursFor(p, k);
-        g.font = (print ? '700 ' : '600 ') + '22px ' + F_BODY; g.textAlign = 'right';
-        const rn = fitText(g, (role ? role.name : '') + (print ? ':' : ''), DW - 56), tw = g.measureText(rn).width;
-        if (!print && role) { g.fillStyle = C.hl(role.color); rrect(g, xR - 18 - tw - 20, py + 2, tw + 20, 32, 9); g.fill(); }
-        g.fillStyle = C.chipInk; g.fillText(rn, xR - 28 - (print ? -10 : 0), py + 19);
-        const me = opt.me && p.emp === opt.me;
+        const e = p.emp ? empById(p.emp) : null, hrs = hoursFor(p, k), me = opt.me && p.emp === opt.me;
+        g.textAlign = 'right';
         if (!p.emp) {
-          if (!print) { g.fillStyle = C.missBg; rrect(g, xR - DW + 12, py + 38, DW - 30, 36, 8); g.fill(); }
-          g.font = '700 26px ' + F_BODY; g.fillStyle = C.miss; g.fillText('חסר שיבוץ', xR - 22, py + 57);
+          if (!print) { g.fillStyle = C.missBg; rrect(g, xR - DW + 12, py + 7, DW - 30, 40, 8); g.fill(); }
+          g.font = '700 26px ' + F_BODY; g.fillStyle = C.miss; g.fillText('חסר שיבוץ', xR - 22, py + 28);
         } else {
-          g.font = (me ? '700 ' : '600 ') + '28px ' + F_BODY; g.fillStyle = me ? C.accent : C.ink;
-          g.fillText(fitText(g, e ? e.name : 'עובד/ת שנמחק/ה', DW - 40), xR - 18, py + 57);
-          if (me) { g.fillStyle = C.accent; g.fillRect(xR - 8, py + 40, 4, 34); }
+          g.font = (me ? '700 ' : '600 ') + '30px ' + F_BODY; g.fillStyle = me ? C.accent : C.ink;
+          g.fillText(fitText(g, e ? e.name : 'עובד/ת שנמחק/ה', DW - 40), xR - 18, py + 28);
+          if (me) { g.fillStyle = C.accent; g.fillRect(xR - 8, py + 9, 4, 38); }
         }
-        if (hrs) { g.direction = 'ltr'; g.font = '600 22px ' + F_BODY; g.fillStyle = C.ink3; g.fillText(fitText(g, hrs, DW - 40), xR - 18, py + 92); g.direction = 'rtl'; }
+        if (hrs) { g.direction = 'ltr'; g.font = '600 22px ' + F_BODY; g.fillStyle = C.ink3; g.fillText(fitText(g, hrs, DW - 40), xR - 18, py + 64); g.direction = 'rtl'; }
         py += POS + (hrs ? HRS : 0);
       }
     }
@@ -1996,7 +2138,6 @@ function schedulePreview() {
    Everything legal is in content/legal/: the texts (Markdown), the business details that fill their
    {{PLACEHOLDERS}} (business.json), and the registry of pages, consent types and cookie categories
    (legal.json). Adding a page or a consent type is an entry there; nothing here needs to change. */
-const APP_VERSION = '1.0.0';
 const CONSENT_KEY = 'sadran.consent';
 const legal = { ready: false, failed: false, reg: null, biz: {}, docs: {}, bundle: null };
 function legalFile(name) {
@@ -2707,13 +2848,13 @@ const actions = {
       if (p.emp) {
         taken.add(p.emp.id);
         if (p.kind === 'same') continue;
-        const u = { id: p.emp.id, name: p.name, roles: p.roles ? ordered(p.roles) : p.emp.roles, max: p.max || p.emp.max };
+        const u = { id: p.emp.id, name: p.name, roles: p.roles ? ordered(p.roles) : p.emp.roles, max: p.max || p.emp.max, double: !!p.emp.double };
         if (p.number) u.number = p.number;
         ups.push(u);
         updated++;
       } else {
         const id = uid('e_');
-        ups.push({ id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : [], max: p.max || 5 });
+        ups.push({ id, name: p.name, number: p.number, roles: p.roles ? ordered(p.roles) : [], max: p.max || 5, double: false });
         taken.add(id);
         added++;
       }
@@ -2923,11 +3064,11 @@ const actions = {
 
   emp(ds, el) {
     const e = ds.id && empById(ds.id);
-    openSheet({ type: 'emp', draft: e ? Object.assign(clone(e), { number: '' }) : { id: null, name: '', number: suggestNumber(), roles: [], max: 5 }, err: '' }, el.id);
+    openSheet({ type: 'emp', draft: e ? Object.assign(clone(e), { number: '' }) : { id: null, name: '', number: suggestNumber(), roles: [], max: 5, double: false }, err: '' }, el.id);
     if (!e) { const inp = $('#empName'); if (inp) inp.focus(); }
   },
   empRole(ds) { const r = ui.sheet.draft.roles, i = r.indexOf(ds.id); if (i < 0) r.push(ds.id); else r.splice(i, 1); render(); },
-  empMax(ds) { const d = ui.sheet.draft; d.max = Math.min(7, Math.max(1, d.max + +ds.d)); render(); },
+  empMax(ds) { const d = ui.sheet.draft; d.max = Math.min(Math.max(maxCap(), d.max), Math.max(1, d.max + +ds.d)); render(); },
   async empSave() {
     const s = ui.sheet, d = s.draft, name = d.name.trim().replace(/\s+/g, ' '), number = normNum(d.number);
     const twin = state.employees.find(e => e.id !== d.id && normName(e.name) === normName(name));
@@ -2940,7 +3081,7 @@ const actions = {
     s.bad = !name || twin ? 'empName' : s.err && d.roles.length ? 'empNumber' : '';
     if (s.err) { render(); return; }
     const roles = state.roles.map(r => r.id).filter(id => d.roles.includes(id));
-    const rec = { id: d.id || uid('e_'), name, roles, max: d.max };
+    const rec = { id: d.id || uid('e_'), name, roles, max: d.max, double: !!d.double };
     if (REMOTE) {
       if (s.busy) return;
       s.busy = true;
@@ -3114,10 +3255,30 @@ const actions = {
   },
   dayToggle(ds) { if (state.closed[ds.k]) delete state.closed[ds.k]; else state.closed[ds.k] = true; render(); },
   rest(ds) { state.rules.minRest = Math.min(16, Math.max(0, state.rules.minRest + +ds.d)); render(); },
+  backupSave() {
+    const data = clone(state);
+    data.prefs = { session: null, demoNote: false };
+    data.consentLog = {};
+    const file = { app: 'sadran', backup: 1, version: APP_VERSION, saved: new Date().toISOString(), data };
+    saveFile('sadran-backup-' + toKey(new Date()) + '.json', new Blob([JSON.stringify(file)], { type: 'application/json' }));
+  },
+  backupPick() { const inp = $('#backupFile'); inp.value = ''; inp.click(); },
+  restoreGo() { const s = ui.sheet; if (s && s.data) replaceData(s.data, 'הנתונים שוחזרו מהגיבוי.'); },
+  keptBack(ds) {
+    const c = kept(ds.why);
+    let data = null;
+    try { data = c && cleanState(JSON.parse(c.data)); } catch (e) { data = null; }
+    if (!data) { toast('העותק הזה כבר לא זמין.'); render(); return; }
+    if (ds.why !== 'restore') { try { localStorage.removeItem(KEEP_KEY + ds.why); } catch (e) { /* it is simply offered again */ } }
+    replaceData(data, 'הנתונים הקודמים הוחזרו.');
+  },
   reset() {
     const manager = state.prefs.session && state.prefs.session.role === 'manager';
+    const agreed = (state.consentLog || {}).manager;
+    keep('reset', JSON.stringify(state));
     state = seed();
-    if (manager) state.prefs.session = { role: 'manager' };
+    // The manager who pressed reset stays signed in, and is not asked to agree to the terms again.
+    if (manager) { state.prefs.session = { role: 'manager' }; if (agreed) state.consentLog = { manager: agreed }; }
     ui.signin = { tab: 'employee', name: '', number: '', code: '', err: '' };
     ui.codeDraft = null;
     ui.codeErr = '';
@@ -3126,7 +3287,7 @@ const actions = {
     ui.undo = null;
     render();
     window.scrollTo(0, 0);
-    toast('נתוני הדוגמה שוחזרו.');
+    toast('נתוני הדוגמה שוחזרו. הנתונים שהיו כאן נשמרו בצד, ואפשר להחזיר אותם בהגדרות.');
   },
 };
 
@@ -3171,7 +3332,7 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('input', e => {
   const t = e.target, b = t.dataset && t.dataset.bind;
-  if (!b || b === 'imp.remove' || b.slice(0, 3) === 'cc.' || b.slice(0, 3) === 'ck.') return;
+  if (!b || b === 'imp.remove' || b === 'draft.double' || b.slice(0, 3) === 'cc.' || b.slice(0, 3) === 'ck.') return;
   const v = t.value, id = t.dataset.id;
   const paint = (attr, text) => document.querySelectorAll('[' + attr + '="' + id + '"]').forEach(n => { n.textContent = text; });
   if (b.slice(0, 3) === 'si.') { ui.signin[b.slice(3)] = v; return; }
@@ -3193,8 +3354,10 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'xlsxFile') { if (t.files && t.files[0]) importFile(t.files[0]); return; }
   if (t.id === 'logoFile') { if (t.files && t.files[0]) uploadLogo(t.files[0]); return; }
+  if (t.id === 'backupFile') { if (t.files && t.files[0]) restoreFile(t.files[0]); return; }
   const b = t.dataset && t.dataset.bind;
   if (b === 'imp.remove' && ui.sheet) { ui.sheet.remove = t.checked; render(); return; }
+  if (b === 'draft.double') { if (ui.sheet && ui.sheet.draft) ui.sheet.draft.double = t.checked; return; }
   if (b && b.slice(0, 3) === 'cc.') {
     const q = b.split('.'), st = consentState(q[1]), c = legal.ready && legal.reg.consents.find(x => x.id === q[2]);
     if (!st) return;

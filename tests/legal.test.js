@@ -30,7 +30,7 @@ const L = require('./lib');
   s.check('missing details are marked', marks.length > 5 && marks.every(t => /^\[להשלים: .+\]$/.test(t)), marks.slice(0, 3));
   s.check('no raw placeholders left', !/\{\{/.test(await page.textContent('article.legal')));
   s.check('filled detail is plain text', /יפן \(טוקיו\)/.test(await page.textContent('article.legal')));
-  s.check('meta line', /עודכן לאחרונה: 18\.11\.2026 · גרסה 1\.0/.test(await L.txt(page, '.legal-meta')), await L.txt(page, '.legal-meta'));
+  s.check('meta line', /עודכן לאחרונה: 20\.11\.2026 · גרסה 1\.1/.test(await L.txt(page, '.legal-meta')), await L.txt(page, '.legal-meta'));
   s.check('current page marked in footer', (await page.getAttribute('#foot a[href="#privacy"]', 'aria-current')) === 'page');
   s.check('mailto with missing address is not a link', (await page.$$('article.legal a[href^="mailto:"]')).length === 0);
   await page.click('article.legal a[href="#cookies"]');

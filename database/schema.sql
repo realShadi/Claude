@@ -66,10 +66,17 @@ create table if not exists sadran.employees (
   name text not null check (length(btrim(name)) between 1 and 80),
   number_hash text not null,   -- bcrypt of the personal number (4 to 12 digits); the number itself is never stored
   roles jsonb not null default '[]'::jsonb check (jsonb_typeof(roles) = 'array'),
-  max_shifts smallint not null default 5 check (max_shifts between 1 and 7),
+  max_shifts smallint not null default 5 check (max_shifts between 1 and 99),
+  double_ok boolean not null default false,   -- may be given two shifts on the same day
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Upgrade: the weekly limit used to stop at 7 (one shift a day). It now goes up to every shift in
+-- the week, and a person can be marked as fine with two shifts on the same day.
+alter table sadran.employees drop constraint if exists employees_max_shifts_check;
+alter table sadran.employees add constraint employees_max_shifts_check check (max_shifts between 1 and 99);
+alter table sadran.employees add column if not exists double_ok boolean not null default false;
 
 -- Upgrade from the first version, which kept the personal number readable.
 do $$
@@ -489,7 +496,8 @@ begin
            'id', e.id,
            'name', e.name,
            'roles', case when mgr or e.id = s.employee_id then e.roles else '[]'::jsonb end,
-           'max', e.max_shifts) order by e.created_at, e.id), '[]'::jsonb)
+           'max', e.max_shifts,
+           'double', case when mgr or e.id = s.employee_id then e.double_ok else false end) order by e.created_at, e.id), '[]'::jsonb)
     into emps from sadran.employees e;
   select coalesce(jsonb_object_agg(w.week, w.recs), '{}'::jsonb) into av from (
     select a.week::text as week,
@@ -550,13 +558,18 @@ begin
   if exists (select 1 from sadran.employees where sadran.norm_name(name) = sadran.norm_name(nm) and id <> eid) then
     return jsonb_build_object('ok', false, 'error', 'name_taken');
   end if;
-  insert into sadran.employees (id, name, number_hash, roles, max_shifts)
+  insert into sadran.employees (id, name, number_hash, roles, max_shifts, double_ok)
   values (eid, nm, case when n <> '' then extensions.crypt(n, extensions.gen_salt('bf', 8)) else '' end,
-          coalesce(p_employee -> 'roles', '[]'::jsonb), coalesce((p_employee ->> 'max')::smallint, 5))
+          coalesce(p_employee -> 'roles', '[]'::jsonb),
+          least(greatest(coalesce((p_employee ->> 'max')::int, 5), 1), 99),
+          coalesce((p_employee ->> 'double')::boolean, false))
   on conflict (id) do update
      set name = excluded.name,
          number_hash = case when excluded.number_hash <> '' then excluded.number_hash else sadran.employees.number_hash end,
-         roles = excluded.roles, max_shifts = excluded.max_shifts, updated_at = now();
+         roles = excluded.roles, max_shifts = excluded.max_shifts,
+         -- a page loaded before this setting existed does not send it: keep what is stored
+         double_ok = case when p_employee ? 'double' then excluded.double_ok else sadran.employees.double_ok end,
+         updated_at = now();
   if n <> '' and not is_new then
     delete from sadran.sessions where employee_id = eid;
   end if;
@@ -600,18 +613,19 @@ begin
   delete from sadran.sessions
    where employee_id in (select x.value ->> 'id' from jsonb_array_elements(coalesce(p_upserts, '[]'::jsonb)) as x
                           where sadran.norm_number(x.value ->> 'number') <> '');
-  insert into sadran.employees (id, name, number_hash, roles, max_shifts)
+  insert into sadran.employees (id, name, number_hash, roles, max_shifts, double_ok)
   select x.value ->> 'id',
          regexp_replace(btrim(x.value ->> 'name'), '\s+', ' ', 'g'),
          case when sadran.norm_number(x.value ->> 'number') <> ''
               then extensions.crypt(sadran.norm_number(x.value ->> 'number'), extensions.gen_salt('bf', 8)) else '' end,
          coalesce(x.value -> 'roles', '[]'::jsonb),
-         coalesce((x.value ->> 'max')::smallint, 5)
+         least(greatest(coalesce((x.value ->> 'max')::int, 5), 1), 99),
+         coalesce((x.value ->> 'double')::boolean, (select e.double_ok from sadran.employees e where e.id = x.value ->> 'id'), false)
     from jsonb_array_elements(coalesce(p_upserts, '[]'::jsonb)) as x
   on conflict (id) do update
      set name = excluded.name,
          number_hash = case when excluded.number_hash <> '' then excluded.number_hash else sadran.employees.number_hash end,
-         roles = excluded.roles, max_shifts = excluded.max_shifts, updated_at = now();
+         roles = excluded.roles, max_shifts = excluded.max_shifts, double_ok = excluded.double_ok, updated_at = now();
   return jsonb_build_object('ok', true);
 exception
   when unique_violation then

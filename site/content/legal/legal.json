@@ -20,7 +20,7 @@
     "PHYSICAL_ACCESSIBILITY": "הסדרי הנגישות במקום העסק (חניה, כניסה, שירותים)"
   },
   "pages": [
-    { "id": "privacy", "title": "מדיניות פרטיות", "file": "privacy.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false },
+    { "id": "privacy", "title": "מדיניות פרטיות", "file": "privacy.md", "version": "1.1", "updated": "2026-11-20", "footer": true, "reviewed": false },
     { "id": "terms", "title": "תנאי שימוש", "file": "terms.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false },
     { "id": "accessibility", "title": "הצהרת נגישות", "file": "accessibility.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false },
     { "id": "cookies", "title": "עוגיות", "file": "cookies.md", "version": "1.0", "updated": "2026-11-18", "footer": true, "reviewed": false }
